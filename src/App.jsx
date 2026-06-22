@@ -532,7 +532,7 @@ function App() {
 
     // 3. Check Teacher
     const teacherAcc = teachers.find(t => 
-      t.name.replace(/\s+/g, '') === cleanUsername && 
+      (t.name.replace(/\s+/g, '') === cleanUsername || (t.username && t.username.replace(/\s+/g, '') === cleanUsername)) && 
       t.password.replace(/\s+/g, '') === cleanPassword
     );
     if (teacherAcc) {
