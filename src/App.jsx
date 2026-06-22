@@ -276,6 +276,7 @@ function App() {
   const [aiStudentName, setAiStudentName] = useState('');
   const [aiStudentPoints, setAiStudentPoints] = useState('');
   const [isCloudLoaded, setIsCloudLoaded] = useState(false);
+  const [isDatabaseLoadedSuccessfully, setIsDatabaseLoadedSuccessfully] = useState(false);
 
   // 20 requests per user limit state
   const [aiUsage, setAiUsage] = useState(() => JSON.parse(localStorage.getItem('bonyan_ai_usage')) || {});
@@ -386,6 +387,7 @@ function App() {
             setPurchaseOrders(data.purchaseOrders);
             if (data.aiUsage) setAiUsage(data.aiUsage);
             console.log('Successfully loaded shared database from server.');
+            setIsDatabaseLoadedSuccessfully(true);
           } else {
             // If server database is empty or old, fall back to our imported bonyanDatabase JSON
             console.log('Server database is empty or outdated. Initializing with imported database.');
@@ -393,14 +395,13 @@ function App() {
             setClassrooms(bonyanDatabase.classrooms);
             setTeachers(bonyanDatabase.teachers);
             setAdmins(bonyanDatabase.admins);
+            setIsDatabaseLoadedSuccessfully(true);
           }
+        } else {
+          console.error('Server returned non-ok status when fetching database.');
         }
       } catch (err) {
-        console.error('Failed to load database from cloud. Fallback to imported JSON.', err);
-        setStudents(bonyanDatabase.students);
-        setClassrooms(bonyanDatabase.classrooms);
-        setTeachers(bonyanDatabase.teachers);
-        setAdmins(bonyanDatabase.admins);
+        console.error('Failed to load database from cloud. Keeping existing local state.', err);
       } finally {
         setIsCloudLoaded(true);
       }
@@ -423,7 +424,7 @@ function App() {
       localStorage.setItem('bonyan_current_user_v3', JSON.stringify(currentUser));
     }
 
-    if (isCloudLoaded && students && students.length >= 300) {
+    if (isCloudLoaded && isDatabaseLoadedSuccessfully && students && students.length >= 300) {
       const saveToCloud = async () => {
         try {
           await fetch('/api/database', {
@@ -448,7 +449,7 @@ function App() {
       };
       saveToCloud();
     }
-  }, [students, classrooms, teachers, admins, storeProducts, gradingHistory, purchaseOrders, isLoggedIn, currentUser, aiUsage, isCloudLoaded]);
+  }, [students, classrooms, teachers, admins, storeProducts, gradingHistory, purchaseOrders, isLoggedIn, currentUser, aiUsage, isCloudLoaded, isDatabaseLoadedSuccessfully]);
 
   // Force reset data from bonyanDatabase JSON if empty
   useEffect(() => {
@@ -1332,32 +1333,68 @@ function App() {
     let fileName = '';
 
     if (type === 'students') {
-      headers = ['الرقم التعريفي', 'الاسم الكامل', 'الرتبة القرآنية', 'كلمة المرور', 'مجموع النقاط', 'النقاط المتاحة', 'الحلقة'];
+      headers = ['الرقم التعريفي', 'الاسم الكامل', 'اسم المستخدم', 'رمز الدخول (كلمة المرور)', 'رقم الهاتف', 'الرتبة القرآنية', 'مجموع النقاط التراكمي', 'النقاط المتاحة للاستبدال', 'الحلقة المسندة', 'حالة الحساب'];
       rows = students.map(s => {
         const cls = classrooms.find(c => c.id === s.classroomId);
-        return [s.id, s.name, getStudentRankName(s.totalPoints), s.password, s.totalPoints, s.availablePoints, cls ? cls.name : 'بدون حلقة'];
+        return [
+          s.id, 
+          s.name, 
+          s.username || '', 
+          s.password || '', 
+          s.phone || 'غير مسجل', 
+          getStudentRankName(s.totalPoints), 
+          s.totalPoints || 0, 
+          s.availablePoints || 0, 
+          cls ? cls.name : 'بدون حلقة',
+          s.isSuspended ? 'حساب معلق' : 'نشط'
+        ];
       });
-      fileName = 'Bonyan_Students.csv';
-    } else {
-      headers = ['الرقم التعريفي', 'الاسم', 'الحلقة المسندة'];
+      fileName = 'Bonyan_Detailed_Students.csv';
+    } else if (type === 'teachers') {
+      headers = ['الرقم التعريفي', 'الاسم الكامل للمعلم', 'اسم المستخدم', 'رمز الدخول', 'رقم الواتساب', 'الحلقة المسندة', 'الجنس'];
       rows = teachers.map(t => {
-        const cls = classrooms.find(c => c.id === t.classroomId);
-        return [t.id, t.name, cls ? cls.name : 'بدون حلقة'];
+        const cls = classrooms.find(c => c.id === t.classroomId || c.teacherId === t.id);
+        const isFemale = t.gender === 'female' || (t.username && t.username.includes('.f.'));
+        return [
+          t.id, 
+          t.name, 
+          t.username || 'لم ينشأ بعد', 
+          t.password || '', 
+          t.whatsapp || 'لا يوجد', 
+          cls ? cls.name : 'بدون حلقة',
+          isFemale ? 'معلمة (إناث)' : 'معلم (ذكور)'
+        ];
       });
-      fileName = 'Bonyan_Teachers.csv';
+      fileName = 'Bonyan_Detailed_Teachers.csv';
+    } else if (type === 'classrooms') {
+      headers = ['معرف الحلقة', 'اسم الحلقة', 'المعلم المسؤول', 'عدد الطلاب', 'إجمالي النقاط التراكمية في الحلقة'];
+      rows = classrooms.map(c => {
+        const teacher = teachers.find(t => t.classroomId === c.id || t.id === c.teacherId);
+        const classStudents = students.filter(s => s.classroomId === c.id);
+        const totalPoints = classStudents.reduce((sum, s) => sum + (s.totalPoints || 0), 0);
+        return [
+          c.id,
+          c.name,
+          teacher ? teacher.name : 'غير معين',
+          classStudents.length,
+          totalPoints
+        ];
+      });
+      fileName = 'Bonyan_Detailed_Classrooms.csv';
     }
 
     let csvContent = "\uFEFF"; 
     csvContent += headers.join(",") + "\n";
     rows.forEach(r => {
-      csvContent += r.map(val => `"${val}"`).join(",") + "\n";
+      csvContent += r.map(val => `"${String(val).replace(/"/g, '""')}"`).join(",") + "\n";
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
+    const cleanFileName = fileName.replace(/\s+/g, '_');
     link.setAttribute("href", url);
-    link.setAttribute("download", fileName);
+    link.setAttribute("download", cleanFileName);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -3915,17 +3952,32 @@ function App() {
             
 {/* TAB CONTENT: EXPORT DATA */}
             {adminTab === 'export' && (
-              <div className="text-center mt-1">
-                <h3>تصدير شيتات البيانات والتقارير</h3>
-                <p style={{ color: 'var(--color-text-gray)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-                  تتيح لك هذه الأداة تصدير كشوفات كاملة بصيغة ملفات CSV متوافقة مع برنامج إكسل لتتبع أداء الطلاب وجداول الأساتذة.
+              <div className="text-center mt-1" style={{ maxWidth: '500px', margin: '0 auto', padding: '1rem' }}>
+                <h3 style={{ fontWeight: '750', color: 'var(--color-primary)', marginBottom: '0.5rem' }}>تصدير شيتات البيانات والتقارير التفصيلية</h3>
+                <p style={{ color: 'var(--color-text-gray)', fontSize: '0.85rem', marginBottom: '1.8rem' }}>
+                  تتيح لك هذه الأداة تصدير كشوفات كاملة ومفصلة بصيغة ملفات CSV متوافقة مع برنامج Microsoft Excel لتتبع كافة التفاصيل.
                 </p>
                 <div className="d-flex flex-column gap-1">
-                  <button className="submit-grades-btn" style={{ margin: 0 }} onClick={() => handleExportData('students')}>
-                    تصدير كشف حسابات ونقاط الطلاب
+                  <button 
+                    className="submit-grades-btn" 
+                    style={{ margin: 0, padding: '0.8rem 1rem', fontWeight: 'bold' }} 
+                    onClick={() => handleExportData('students')}
+                  >
+                    📊 تصدير كشف معلومات ونقاط الطلاب بالتفصيل
                   </button>
-                  <button className="submit-grades-btn" style={{ margin: 0, backgroundColor: 'var(--color-primary-light)' }} onClick={() => handleExportData('teachers')}>
-                    تصدير كشف المعلمين والحلقات
+                  <button 
+                    className="submit-grades-btn" 
+                    style={{ margin: 0, padding: '0.8rem 1rem', backgroundColor: 'var(--color-primary-light)', color: 'var(--color-primary)', fontWeight: 'bold' }} 
+                    onClick={() => handleExportData('teachers')}
+                  >
+                    👥 تصدير كشف حسابات ومعلومات المعلمين بالتفصيل
+                  </button>
+                  <button 
+                    className="submit-grades-btn" 
+                    style={{ margin: 0, padding: '0.8rem 1rem', backgroundColor: '#e2e8f0', color: '#334155', fontWeight: 'bold' }} 
+                    onClick={() => handleExportData('classrooms')}
+                  >
+                    🏢 تصدير كشف الحلقات والدورات بكامل التفاصيل
                   </button>
                 </div>
               </div>
