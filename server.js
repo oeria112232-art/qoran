@@ -41,10 +41,42 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Diagnostic endpoint to check database status
+  if (req.url.startsWith('/api/debug')) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    const liveExists = fs.existsSync(DB_PATH);
+    const seedExists = fs.existsSync(SEED_DB_PATH);
+    let liveSize = 0;
+    let liveContentPreview = '';
+    if (liveExists) {
+      try {
+        const content = fs.readFileSync(DB_PATH, 'utf8');
+        const parsed = JSON.parse(content);
+        liveSize = content.length;
+        liveContentPreview = `students: ${parsed?.students?.length || 0}, teachers: ${parsed?.teachers?.length || 0}, classrooms: ${parsed?.classrooms?.length || 0}`;
+      } catch (e) {
+        liveContentPreview = 'Error: ' + e.message;
+      }
+    }
+    res.end(JSON.stringify({
+      liveExists,
+      seedExists,
+      liveSize,
+      liveContentPreview,
+      dbPath: DB_PATH,
+      seedDbPath: SEED_DB_PATH
+    }));
+    return;
+  }
+
   // Handle API Database
   if (req.url.startsWith('/api/database')) {
     if (req.method === 'GET') {
       res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      
       if (fs.existsSync(DB_PATH)) {
         res.end(fs.readFileSync(DB_PATH, 'utf8'));
       } else {

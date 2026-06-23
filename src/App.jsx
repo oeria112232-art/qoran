@@ -373,7 +373,7 @@ function App() {
   useEffect(() => {
     const loadFromCloud = async () => {
       try {
-        const response = await fetch('/api/database');
+        const response = await fetch('/api/database?cb=' + Date.now());
         if (response.ok) {
           const data = await response.json();
           // Ensure we only load data if it contains the full set of imported students
