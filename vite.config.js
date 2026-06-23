@@ -30,10 +30,23 @@ export default defineConfig({
               let body = '';
               req.on('data', chunk => { body += chunk; });
               req.on('end', () => {
-                fs.writeFileSync(dbPath, body, 'utf8');
-                res.setHeader('Content-Type', 'application/json');
-                res.setHeader('Access-Control-Allow-Origin', '*');
-                res.end(JSON.stringify({ success: true }));
+                try {
+                  const parsed = JSON.parse(body);
+                  if (parsed && Array.isArray(parsed.students) && parsed.students.length >= 100 && Array.isArray(parsed.teachers)) {
+                    fs.writeFileSync(dbPath, body, 'utf8');
+                    res.setHeader('Content-Type', 'application/json');
+                    res.setHeader('Access-Control-Allow-Origin', '*');
+                    res.end(JSON.stringify({ success: true }));
+                  } else {
+                    res.statusCode = 400;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ error: 'Invalid database structure' }));
+                  }
+                } catch (e) {
+                  res.statusCode = 400;
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ error: 'Invalid JSON' }));
+                }
               });
               return;
             }

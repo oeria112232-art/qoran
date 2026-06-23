@@ -51,11 +51,16 @@ const server = http.createServer((req, res) => {
       req.on('data', chunk => { body += chunk; });
       req.on('end', () => {
         try {
-          // Validate JSON before saving
-          JSON.parse(body);
-          fs.writeFileSync(DB_PATH, body, 'utf8');
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true }));
+          // Validate JSON and schema before saving
+          const parsed = JSON.parse(body);
+          if (parsed && Array.isArray(parsed.students) && parsed.students.length >= 100 && Array.isArray(parsed.teachers)) {
+            fs.writeFileSync(DB_PATH, body, 'utf8');
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true }));
+          } else {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid database structure' }));
+          }
         } catch (e) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Invalid JSON' }));
