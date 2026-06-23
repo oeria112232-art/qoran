@@ -409,7 +409,7 @@ function App() {
     loadFromCloud();
   }, []);
 
-  // 2. Sync to localStorage & Cloud Database
+  // 2. Sync to localStorage
   useEffect(() => {
     // Only save to local storage if it's the correct imported data
     if (students && students.length >= 300) {
@@ -423,7 +423,10 @@ function App() {
       localStorage.setItem('bonyan_logged_in_v3', JSON.stringify(isLoggedIn));
       localStorage.setItem('bonyan_current_user_v3', JSON.stringify(currentUser));
     }
+  }, [students, classrooms, teachers, admins, storeProducts, gradingHistory, purchaseOrders, isLoggedIn, currentUser, aiUsage]);
 
+  // 2.5 Sync to Cloud Database (Triggers ONLY when data is loaded successfully AND the data itself changes, preventing overwrite on login/logout)
+  useEffect(() => {
     if (isCloudLoaded && isDatabaseLoadedSuccessfully && students && students.length >= 300) {
       const saveToCloud = async () => {
         try {
@@ -449,7 +452,7 @@ function App() {
       };
       saveToCloud();
     }
-  }, [students, classrooms, teachers, admins, storeProducts, gradingHistory, purchaseOrders, isLoggedIn, currentUser, aiUsage, isCloudLoaded, isDatabaseLoadedSuccessfully]);
+  }, [students, classrooms, teachers, admins, storeProducts, gradingHistory, purchaseOrders, aiUsage, isCloudLoaded, isDatabaseLoadedSuccessfully]);
 
   // Force reset data from bonyanDatabase JSON if empty
   useEffect(() => {
