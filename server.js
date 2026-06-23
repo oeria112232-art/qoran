@@ -7,7 +7,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 4445;
-const DB_PATH = path.resolve(__dirname, 'bonyan_database.json');
+const SEED_DB_PATH = path.resolve(__dirname, 'bonyan_database.json');
+const DB_PATH = path.resolve(__dirname, 'database_live.json');
+
+// Copy seed database to live database if live database doesn't exist on server startup
+if (!fs.existsSync(DB_PATH) && fs.existsSync(SEED_DB_PATH)) {
+  fs.copyFileSync(SEED_DB_PATH, DB_PATH);
+}
+
 const DIST_DIR = path.resolve(__dirname, 'dist');
 
 const MIME_TYPES = {

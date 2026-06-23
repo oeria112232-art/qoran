@@ -430,7 +430,7 @@ function App() {
     if (isCloudLoaded && isDatabaseLoadedSuccessfully && students && students.length >= 300) {
       const saveToCloud = async () => {
         try {
-          await fetch('/api/database', {
+          const response = await fetch('/api/database', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
@@ -446,8 +446,13 @@ function App() {
               aiUsage
             })
           });
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            triggerToast('خطأ: فشل حفظ التعديلات في السيرفر! ' + (errData.error || ''));
+          }
         } catch (err) {
           console.error('Failed to save database to cloud.', err);
+          triggerToast('خطأ: تعذر الاتصال بالسيرفر لحفظ التغييرات!');
         }
       };
       saveToCloud();

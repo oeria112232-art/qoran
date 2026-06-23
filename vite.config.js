@@ -13,7 +13,13 @@ export default defineConfig({
       configureServer(server) {
         server.middlewares.use((req, res, next) => {
           if (req.url.startsWith('/api/database')) {
-            const dbPath = path.resolve(__dirname, 'bonyan_database.json');
+            const seedDbPath = path.resolve(__dirname, 'bonyan_database.json');
+            const dbPath = path.resolve(__dirname, 'database_live.json');
+            
+            // Copy seed database to live database if live database doesn't exist
+            if (!fs.existsSync(dbPath) && fs.existsSync(seedDbPath)) {
+              fs.copyFileSync(seedDbPath, dbPath);
+            }
             
             if (req.method === 'GET') {
               res.setHeader('Content-Type', 'application/json');
