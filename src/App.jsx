@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import bonyanDatabase from '../bonyan_database.json';
+import { db } from './firebase';
+import { ref, set, onValue } from 'firebase/database';
 
 // ضع مفتاح Google Gemini API الجديد هنا (الذي يبدأ بـ AIzaSy)
 const GEMINI_API_KEY = "AQ.Ab8RN6IDw5D9b3S6PTMyaelq41jSqzi7JTM1EjY6qkP-RBKDmQ";
@@ -89,6 +91,8 @@ const getStudentRankName = (totalPoints) => {
 };
 
 function App() {
+  const isIncomingCloudUpdate = useRef(false);
+  
   // Database States loaded from localStorage or bonyan_database.json (which contains the 379 students)
   const [students, setStudents] = useState(() => {
     try {
@@ -369,44 +373,55 @@ function App() {
     }
   };
 
-  // 1. Initial Cloud Database Load
+  // 1. Initial Cloud Database Load & Realtime Sync (Firebase Realtime Database)
   useEffect(() => {
-    const loadFromCloud = async () => {
-      try {
-        const response = await fetch('/api/database?cb=' + Date.now());
-        if (response.ok) {
-          const data = await response.json();
-          // Ensure we only load data if it contains the full set of imported students
-          if (data && data.students && data.students.length >= 300) {
-            setStudents(data.students);
-            setClassrooms(data.classrooms);
-            setTeachers(data.teachers);
-            setAdmins(data.admins);
-            setStoreProducts(data.storeProducts);
-            setGradingHistory((data.gradingHistory || []).filter(item => item.id !== 'g1' && item.id !== 'g2'));
-            setPurchaseOrders(data.purchaseOrders);
-            if (data.aiUsage) setAiUsage(data.aiUsage);
-            console.log('Successfully loaded shared database from server.');
-            setIsDatabaseLoadedSuccessfully(true);
-          } else {
-            // If server database is empty or old, fall back to our imported bonyanDatabase JSON
-            console.log('Server database is empty or outdated. Initializing with imported database.');
-            setStudents(bonyanDatabase.students);
-            setClassrooms(bonyanDatabase.classrooms);
-            setTeachers(bonyanDatabase.teachers);
-            setAdmins(bonyanDatabase.admins);
-            setIsDatabaseLoadedSuccessfully(true);
-          }
-        } else {
-          console.error('Server returned non-ok status when fetching database.');
-        }
-      } catch (err) {
-        console.error('Failed to load database from cloud. Keeping existing local state.', err);
-      } finally {
-        setIsCloudLoaded(true);
+    const dbRef = ref(db, '/');
+    const unsubscribe = onValue(dbRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data && data.students && data.students.length >= 300) {
+        // Mark this update as incoming from cloud to prevent echo write
+        isIncomingCloudUpdate.current = true;
+        
+        setStudents(data.students);
+        setClassrooms(data.classrooms);
+        setTeachers(data.teachers);
+        setAdmins(data.admins);
+        setStoreProducts(data.storeProducts || []);
+        setGradingHistory((data.gradingHistory || []).filter(item => item.id !== 'g1' && item.id !== 'g2'));
+        setPurchaseOrders(data.purchaseOrders || []);
+        if (data.aiUsage) setAiUsage(data.aiUsage);
+        
+        console.log('Successfully synced database from Firebase Realtime Database.');
+        setIsDatabaseLoadedSuccessfully(true);
+      } else {
+        // If Firebase database is empty, seed it with initial bonyanDatabase JSON data
+        console.log('Firebase is empty. Seeding Firebase with initial database.');
+        const seedData = {
+          students: bonyanDatabase.students,
+          classrooms: bonyanDatabase.classrooms,
+          teachers: bonyanDatabase.teachers,
+          admins: bonyanDatabase.admins,
+          storeProducts: storeProducts || [],
+          gradingHistory: gradingHistory || [],
+          purchaseOrders: purchaseOrders || [],
+          aiUsage: aiUsage || {}
+        };
+        set(ref(db, '/'), seedData)
+          .then(() => {
+            console.log('Successfully seeded initial database to Firebase.');
+          })
+          .catch((error) => {
+            console.error('Failed to seed initial database to Firebase:', error);
+          });
       }
-    };
-    loadFromCloud();
+      setIsCloudLoaded(true);
+    }, (error) => {
+      console.error('Firebase read error:', error);
+      triggerToast('خطأ: فشل الاتصال بقاعدة بيانات Firebase!');
+      setIsCloudLoaded(true);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // 2. Sync to localStorage
@@ -425,34 +440,31 @@ function App() {
     }
   }, [students, classrooms, teachers, admins, storeProducts, gradingHistory, purchaseOrders, isLoggedIn, currentUser, aiUsage]);
 
-  // 2.5 Sync to Cloud Database (Triggers ONLY when data is loaded successfully AND the data itself changes, preventing overwrite on login/logout)
+  // 2.5 Sync to Cloud Database (Triggers ONLY when data is loaded successfully AND the data itself changes)
   useEffect(() => {
     if (isCloudLoaded && isDatabaseLoadedSuccessfully && students && students.length >= 300) {
+      if (isIncomingCloudUpdate.current) {
+        // Prevent infinite write loop by skipping this update which came from Firebase
+        isIncomingCloudUpdate.current = false;
+        return;
+      }
+
       const saveToCloud = async () => {
         try {
-          const response = await fetch('/api/database', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              students,
-              classrooms,
-              teachers,
-              admins,
-              storeProducts,
-              gradingHistory,
-              purchaseOrders,
-              aiUsage
-            })
+          await set(ref(db, '/'), {
+            students,
+            classrooms,
+            teachers,
+            admins,
+            storeProducts,
+            gradingHistory,
+            purchaseOrders,
+            aiUsage
           });
-          if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            triggerToast('خطأ: فشل حفظ التعديلات في السيرفر! ' + (errData.error || ''));
-          }
+          console.log('Successfully updated database on Firebase.');
         } catch (err) {
-          console.error('Failed to save database to cloud.', err);
-          triggerToast('خطأ: تعذر الاتصال بالسيرفر لحفظ التغييرات!');
+          console.error('Failed to save database to Firebase.', err);
+          triggerToast('خطأ: فشل حفظ التعديلات في قاعدة البيانات السحابية!');
         }
       };
       saveToCloud();

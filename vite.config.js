@@ -7,60 +7,7 @@ import path from 'path'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
-    react(),
-    {
-      name: 'api-database-middleware',
-      configureServer(server) {
-        server.middlewares.use((req, res, next) => {
-          if (req.url.startsWith('/api/database')) {
-            const seedDbPath = path.resolve(__dirname, 'bonyan_database.json');
-            const dbPath = path.resolve(__dirname, 'database_live.json');
-            
-            // Copy seed database to live database if live database doesn't exist
-            if (!fs.existsSync(dbPath) && fs.existsSync(seedDbPath)) {
-              fs.copyFileSync(seedDbPath, dbPath);
-            }
-            
-            if (req.method === 'GET') {
-              res.setHeader('Content-Type', 'application/json');
-              res.setHeader('Access-Control-Allow-Origin', '*');
-              if (fs.existsSync(dbPath)) {
-                res.end(fs.readFileSync(dbPath, 'utf8'));
-              } else {
-                res.end(JSON.stringify({}));
-              }
-              return;
-            }
-            
-            if (req.method === 'POST') {
-              let body = '';
-              req.on('data', chunk => { body += chunk; });
-              req.on('end', () => {
-                try {
-                  const parsed = JSON.parse(body);
-                  if (parsed && Array.isArray(parsed.students) && parsed.students.length >= 100 && Array.isArray(parsed.teachers)) {
-                    fs.writeFileSync(dbPath, body, 'utf8');
-                    res.setHeader('Content-Type', 'application/json');
-                    res.setHeader('Access-Control-Allow-Origin', '*');
-                    res.end(JSON.stringify({ success: true }));
-                  } else {
-                    res.statusCode = 400;
-                    res.setHeader('Content-Type', 'application/json');
-                    res.end(JSON.stringify({ error: 'Invalid database structure' }));
-                  }
-                } catch (e) {
-                  res.statusCode = 400;
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ error: 'Invalid JSON' }));
-                }
-              });
-              return;
-            }
-          }
-          next();
-        });
-      }
-    }
+    react()
   ],
   server: {
     port: 4445,
