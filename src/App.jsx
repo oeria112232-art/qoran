@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import bonyanDatabase from '../bonyan_database.json';
 import { db } from './firebase';
-import { ref, set, onValue } from 'firebase/database';
+import { ref, set, onValue, update } from 'firebase/database';
 
 // ضع مفتاح Google Gemini API الجديد هنا (الذي يبدأ بـ AIzaSy)
 const GEMINI_API_KEY = "AQ.Ab8RN6IDw5D9b3S6PTMyaelq41jSqzi7JTM1EjY6qkP-RBKDmQ";
@@ -82,6 +82,15 @@ const TICKER_MESSAGES = [
   "كن مع القرآن يكن لك نوراً في الدنيا والآخرة"
 ];
 
+// Helper: Get local date string in YYYY-MM-DD format (local timezone)
+const getLocalDateString = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 // Helper: Calculate Student Quranic Rank based on points
 const getStudentRankName = (totalPoints) => {
   if (totalPoints >= 650) return 'حافظ القرآن';
@@ -92,6 +101,14 @@ const getStudentRankName = (totalPoints) => {
 
 function App() {
   const isIncomingCloudUpdate = useRef(false);
+  const prevStudentsRef = useRef(null);
+  const prevClassroomsRef = useRef(null);
+  const prevTeachersRef = useRef(null);
+  const prevAdminsRef = useRef(null);
+  const prevStoreProductsRef = useRef(null);
+  const prevGradingHistoryRef = useRef(null);
+  const prevPurchaseOrdersRef = useRef(null);
+  const prevAiUsageRef = useRef(null);
   
   // Database States loaded from localStorage or bonyan_database.json (which contains the 379 students)
   const [students, setStudents] = useState(() => {
@@ -387,9 +404,20 @@ function App() {
         if (data.teachers) setTeachers(data.teachers);
         if (data.admins) setAdmins(data.admins);
         setStoreProducts(data.storeProducts || []);
-        setGradingHistory((data.gradingHistory || []).filter(item => item.id !== 'g1' && item.id !== 'g2'));
+        const filteredGradingHistory = (data.gradingHistory || []).filter(item => item.id !== 'g1' && item.id !== 'g2');
+        setGradingHistory(filteredGradingHistory);
         setPurchaseOrders(data.purchaseOrders || []);
         if (data.aiUsage) setAiUsage(data.aiUsage);
+
+        // Update the refs with the incoming cloud values to prevent triggering save effect
+        prevStudentsRef.current = data.students;
+        prevClassroomsRef.current = data.classrooms;
+        prevTeachersRef.current = data.teachers;
+        prevAdminsRef.current = data.admins;
+        prevStoreProductsRef.current = data.storeProducts || [];
+        prevGradingHistoryRef.current = filteredGradingHistory;
+        prevPurchaseOrdersRef.current = data.purchaseOrders || [];
+        prevAiUsageRef.current = data.aiUsage || {};
         
         console.log('Successfully synced database from Firebase Realtime Database.');
         setIsDatabaseLoadedSuccessfully(true);
@@ -451,19 +479,122 @@ function App() {
 
       const saveToCloud = async () => {
         try {
-          await set(ref(db, '/'), {
-            students,
-            classrooms,
-            teachers,
-            admins,
-            storeProducts,
-            gradingHistory,
-            purchaseOrders,
-            aiUsage
-          });
-          console.log('Successfully updated database on Firebase.');
+          const updates = {};
+          let hasUpdates = false;
+
+          // 1. Compare students
+          if (!prevStudentsRef.current || prevStudentsRef.current.length !== students.length) {
+            updates['/students'] = students;
+            hasUpdates = true;
+          } else {
+            students.forEach((item, idx) => {
+              if (JSON.stringify(item) !== JSON.stringify(prevStudentsRef.current[idx])) {
+                updates[`/students/${idx}`] = item;
+                hasUpdates = true;
+              }
+            });
+          }
+
+          // 2. Compare classrooms
+          if (!prevClassroomsRef.current || prevClassroomsRef.current.length !== classrooms.length) {
+            updates['/classrooms'] = classrooms;
+            hasUpdates = true;
+          } else {
+            classrooms.forEach((item, idx) => {
+              if (JSON.stringify(item) !== JSON.stringify(prevClassroomsRef.current[idx])) {
+                updates[`/classrooms/${idx}`] = item;
+                hasUpdates = true;
+              }
+            });
+          }
+
+          // 3. Compare teachers
+          if (!prevTeachersRef.current || prevTeachersRef.current.length !== teachers.length) {
+            updates['/teachers'] = teachers;
+            hasUpdates = true;
+          } else {
+            teachers.forEach((item, idx) => {
+              if (JSON.stringify(item) !== JSON.stringify(prevTeachersRef.current[idx])) {
+                updates[`/teachers/${idx}`] = item;
+                hasUpdates = true;
+              }
+            });
+          }
+
+          // 4. Compare admins
+          if (!prevAdminsRef.current || prevAdminsRef.current.length !== admins.length) {
+            updates['/admins'] = admins;
+            hasUpdates = true;
+          } else {
+            admins.forEach((item, idx) => {
+              if (JSON.stringify(item) !== JSON.stringify(prevAdminsRef.current[idx])) {
+                updates[`/admins/${idx}`] = item;
+                hasUpdates = true;
+              }
+            });
+          }
+
+          // 5. Compare storeProducts
+          if (!prevStoreProductsRef.current || prevStoreProductsRef.current.length !== storeProducts.length) {
+            updates['/storeProducts'] = storeProducts;
+            hasUpdates = true;
+          } else {
+            storeProducts.forEach((item, idx) => {
+              if (JSON.stringify(item) !== JSON.stringify(prevStoreProductsRef.current[idx])) {
+                updates[`/storeProducts/${idx}`] = item;
+                hasUpdates = true;
+              }
+            });
+          }
+
+          // 6. Compare gradingHistory
+          if (!prevGradingHistoryRef.current || prevGradingHistoryRef.current.length !== gradingHistory.length) {
+            updates['/gradingHistory'] = gradingHistory;
+            hasUpdates = true;
+          } else {
+            gradingHistory.forEach((item, idx) => {
+              if (JSON.stringify(item) !== JSON.stringify(prevGradingHistoryRef.current[idx])) {
+                updates[`/gradingHistory/${idx}`] = item;
+                hasUpdates = true;
+              }
+            });
+          }
+
+          // 7. Compare purchaseOrders
+          if (!prevPurchaseOrdersRef.current || prevPurchaseOrdersRef.current.length !== purchaseOrders.length) {
+            updates['/purchaseOrders'] = purchaseOrders;
+            hasUpdates = true;
+          } else {
+            purchaseOrders.forEach((item, idx) => {
+              if (JSON.stringify(item) !== JSON.stringify(prevPurchaseOrdersRef.current[idx])) {
+                updates[`/purchaseOrders/${idx}`] = item;
+                hasUpdates = true;
+              }
+            });
+          }
+
+          // 8. Compare aiUsage
+          if (JSON.stringify(aiUsage) !== JSON.stringify(prevAiUsageRef.current)) {
+            updates['/aiUsage'] = aiUsage;
+            hasUpdates = true;
+          }
+
+          if (hasUpdates) {
+            await update(ref(db, '/'), updates);
+            console.log('Successfully saved atomic updates to Firebase:', Object.keys(updates));
+          }
+
+          // Update previous references for next save cycle
+          prevStudentsRef.current = students;
+          prevClassroomsRef.current = classrooms;
+          prevTeachersRef.current = teachers;
+          prevAdminsRef.current = admins;
+          prevStoreProductsRef.current = storeProducts;
+          prevGradingHistoryRef.current = gradingHistory;
+          prevPurchaseOrdersRef.current = purchaseOrders;
+          prevAiUsageRef.current = aiUsage;
         } catch (err) {
-          console.error('Failed to save database to Firebase.', err);
+          console.error('Failed to save database updates to Firebase.', err);
           triggerToast('خطأ: فشل حفظ التعديلات في قاعدة البيانات السحابية!');
         }
       };
@@ -712,7 +843,7 @@ function App() {
     }
 
     // Check if already graded today
-    const todayIso = new Date().toISOString().split('T')[0];
+    const todayIso = getLocalDateString();
     const todayAr = new Date().toLocaleDateString('ar-EG', { weekday: 'long', month: 'numeric', day: 'numeric' });
     const todayEn = new Date().toLocaleDateString('en-US');
     const alreadyGraded = gradingHistory.some(h => 
@@ -771,7 +902,7 @@ function App() {
     const historyItem = {
       id: 'g_' + Date.now(),
       studentId: selectedStudentId,
-      isoDate: new Date().toISOString().split('T')[0],
+      isoDate: getLocalDateString(),
       date: new Date().toLocaleDateString('ar-EG', { weekday: 'long', month: 'numeric', day: 'numeric' }),
       homework: newHomeworkText || student.homework,
       grades: {
