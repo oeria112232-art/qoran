@@ -1,66 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import bonyanDatabase from '../bonyan_database.json';
 import { db } from './firebase';
 import { ref, set, onValue, update } from 'firebase/database';
 
 // ضع مفتاح Google Gemini API الجديد هنا (الذي يبدأ بـ AIzaSy)
 const GEMINI_API_KEY = "AQ.Ab8RN6IDw5D9b3S6PTMyaelq41jSqzi7JTM1EjY6qkP-RBKDmQ";
-
-// Seeded student accounts from all the images provided (total 24 students)
-const INITIAL_STUDENTS = [
-  { id: 's1', name: 'سارة طالب ياسين', username: 'sarah', password: 'agpo9nc9', totalPoints: 0, availablePoints: 0, classroomId: 'c1', avatar: '', homework: 'تسميع سورة البقرة' },
-  { id: 's2', name: 'سمية منذر', username: 'samia', password: '5o996q35', totalPoints: 0, availablePoints: 0, classroomId: 'c2', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's3', name: 'عائشة محمد اسماعيل', username: 'aisha', password: 'd47o726p', totalPoints: 0, availablePoints: 0, classroomId: 'c3', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's4', name: 'ايناس عبدالستار كاظم', username: 'enas', password: 'lp67o4rv', totalPoints: 0, availablePoints: 0, classroomId: 'c4', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's5', name: 'بان حسن', username: 'ban', password: 'bb31kget', totalPoints: 0, availablePoints: 0, classroomId: 'c5', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's6', name: 'سارة رافت عبدالمنعم', username: 'sara', password: 'ej41mvcy', totalPoints: 0, availablePoints: 0, classroomId: 'c6', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's7', name: 'سندس ابراهيم', username: 'sondos', password: 'b7rhoc4', totalPoints: 0, availablePoints: 0, classroomId: 'c7', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's8', name: 'مريم طالب', username: 'maryam', password: 'y4f62ef5', totalPoints: 0, availablePoints: 0, classroomId: 'c8', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's9', name: 'هبه حامد سرحان', username: 'heba', password: 'xv3tq5pp', totalPoints: 0, availablePoints: 0, classroomId: 'c9', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's10', name: 'يسرى عبدالفتاح ياسين', username: 'yusra', password: 'hgsoqce6', totalPoints: 0, availablePoints: 0, classroomId: 'c10', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's11', name: 'اسراء هشام', username: 'israa', password: '3izmajzr', totalPoints: 0, availablePoints: 0, classroomId: 'c11', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's12', name: 'سارة جمال محمد', username: 'sara897', password: 'hvag5twm', totalPoints: 0, availablePoints: 0, classroomId: 'c12', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's13', name: 'الاء احمد عاكف', username: 'alaa', password: 'pq7c9dpj', totalPoints: 0, availablePoints: 0, classroomId: 'c13', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's14', name: 'ايسار جميل حمد', username: 'aysar', password: '0ohfe0be', totalPoints: 0, availablePoints: 0, classroomId: 'c14', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's15', name: 'ايمان عبدالقادر ناجي', username: 'iman', password: 'g2d8a1i', totalPoints: 0, availablePoints: 0, classroomId: 'c15', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's16', name: 'تقى محمد جاسم', username: 'taqi', password: 'ba677zde', totalPoints: 0, availablePoints: 0, classroomId: 'c16', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's17', name: 'حنين سالم علي', username: 'hanin136', password: 'vdfaqxk3', totalPoints: 0, availablePoints: 0, classroomId: 'c17', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's18', name: 'سجى هادي عبد', username: 'saja', password: 'lx6n4kn8', totalPoints: 0, availablePoints: 0, classroomId: 'c18', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's19', name: 'شهد نبيل', username: 'shahed', password: 'mriuxgtb', totalPoints: 0, availablePoints: 0, classroomId: 'c19', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's20', name: 'ملاذ احمد ابراهيم', username: 'malath', password: 'iow6qa13', totalPoints: 0, availablePoints: 0, classroomId: 'c20', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's21', name: 'منال محمد عسكر', username: 'manal', password: 'bwhs1mam', totalPoints: 0, availablePoints: 0, classroomId: 'c21', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's22', name: 'نهلة محمد', username: 'nahla180', password: '0trb1l2e', totalPoints: 0, availablePoints: 0, classroomId: 'c22', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's23', name: 'هند فاضل دولانة', username: 'hind', password: '5ptjy6e2', totalPoints: 0, availablePoints: 0, classroomId: 'c21', avatar: '', homework: 'لم يحدد واجب بعد' },
-  { id: 's24', name: 'ليلى علي عبداللطيف', username: 'laila', password: 'b5nd5gp6', totalPoints: 0, availablePoints: 0, classroomId: 'c23', avatar: '', homework: 'لم يحدد واجب بعد' }
-];
-
-const INITIAL_CLASSROOMS = [
-  { id: 'c1', name: 'المدرسة الملكية ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c2', name: 'المدرسة الاشرفية ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c3', name: 'المدرسة العثمانية ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c4', name: 'باب الرحمة ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c5', name: 'مسجد البراق ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c6', name: 'مأذنة المغاربة ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c7', name: 'المسجد القبلي ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c8', name: 'مأذنة السلسلة ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c9', name: 'باب القطانين ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c10', name: 'المصلى المرواني ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c11', name: 'باب الاسباط ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c12', name: 'مسجد قبة الصخرة ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c13', name: 'المسجد القديم ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c14', name: 'مأذنة الاسباط ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c15', name: 'قبة الصخرة ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c16', name: 'قبة السلسلة ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c17', name: 'قبة المعراج ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c18', name: 'قبة النبي ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c19', name: 'قبة الارواح ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c20', name: 'قبة يوسف ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c21', name: 'قبة سليمان ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c22', name: 'قبة موسى ٢', teacherId: '', totalPoints: 0 },
-  { id: 'c23', name: 'قبة الميزان ٢', teacherId: '', totalPoints: 0 }
-];
-
-const INITIAL_TEACHERS = [];
 
 const INITIAL_ADMINS = [
   { id: 'a1', name: 'عمر الخطاب', email: 'admin@bonyan.com', password: '123' }
@@ -75,13 +19,6 @@ const INITIAL_STORE = [
 
 const INITIAL_GRADING_HISTORY = [];
 
-const TICKER_MESSAGES = [
-  "قال رسول الله صلى الله عليه وسلم: خيركم من تعلم القرآن وعلمه",
-  "استمر في الحفظ والمواظبة لتحصد أعلى الأوسمة والجوائز القيمة",
-  "منصة بنيان الصيفية لعام 1447هـ - جامع فدائي الإسلام الأول",
-  "كن مع القرآن يكن لك نوراً في الدنيا والآخرة"
-];
-
 // Helper: Get local date string in YYYY-MM-DD format (local timezone)
 const getLocalDateString = () => {
   const d = new Date();
@@ -89,6 +26,16 @@ const getLocalDateString = () => {
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+// Helper: Generate unique ID to ensure purity during render cycles
+const generateUniqueId = (prefix) => {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+};
+
+// Helper: Generate teacher username suffix
+const generateTeacherUsernameSuffix = () => {
+  return Date.now().toString().slice(-4);
 };
 
 // Helper: Calculate Student Quranic Rank based on points
@@ -115,7 +62,7 @@ function App() {
     try {
       const saved = JSON.parse(localStorage.getItem('bonyan_students_v3'));
       return Array.isArray(saved) ? saved : bonyanDatabase.students;
-    } catch(e) {
+    } catch {
       return bonyanDatabase.students;
     }
   });
@@ -123,18 +70,20 @@ function App() {
   const [classrooms, setClassrooms] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('bonyan_classrooms_v3'));
-      return Array.isArray(saved) ? saved : bonyanDatabase.classrooms;
-    } catch(e) {
-      return bonyanDatabase.classrooms;
+      const base = Array.isArray(saved) ? saved : bonyanDatabase.classrooms;
+      return base.map(c => (c.teacherId === 't1' || c.teacherId === 't2') ? { ...c, teacherId: '' } : c);
+    } catch {
+      return bonyanDatabase.classrooms.map(c => (c.teacherId === 't1' || c.teacherId === 't2') ? { ...c, teacherId: '' } : c);
     }
   });
 
   const [teachers, setTeachers] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('bonyan_teachers_v3'));
-      return Array.isArray(saved) ? saved : bonyanDatabase.teachers;
-    } catch(e) {
-      return bonyanDatabase.teachers;
+      const base = Array.isArray(saved) ? saved : bonyanDatabase.teachers;
+      return base.filter(t => t.id !== 't1' && t.id !== 't2');
+    } catch {
+      return bonyanDatabase.teachers.filter(t => t.id !== 't1' && t.id !== 't2');
     }
   });
 
@@ -142,7 +91,7 @@ function App() {
     try {
       const saved = JSON.parse(localStorage.getItem('bonyan_admins_v3'));
       return Array.isArray(saved) ? saved : (bonyanDatabase.admins || INITIAL_ADMINS);
-    } catch(e) {
+    } catch {
       return bonyanDatabase.admins || INITIAL_ADMINS;
     }
   });
@@ -151,7 +100,7 @@ function App() {
     try {
       const saved = JSON.parse(localStorage.getItem('bonyan_store_v3'));
       return Array.isArray(saved) ? saved : INITIAL_STORE;
-    } catch(e) {
+    } catch {
       return INITIAL_STORE;
     }
   });
@@ -161,7 +110,7 @@ function App() {
       const saved = JSON.parse(localStorage.getItem('bonyan_grading_history_v3'));
       const base = Array.isArray(saved) ? saved : INITIAL_GRADING_HISTORY;
       return base.filter(item => item.id !== 'g1' && item.id !== 'g2');
-    } catch(e) {
+    } catch {
       return [];
     }
   });
@@ -170,7 +119,7 @@ function App() {
     try {
       const saved = JSON.parse(localStorage.getItem('bonyan_orders_v3'));
       return Array.isArray(saved) ? saved : [];
-    } catch(e) {
+    } catch {
       return [];
     }
   });
@@ -180,7 +129,7 @@ function App() {
     try {
       const saved = JSON.parse(localStorage.getItem('bonyan_logged_in_v3'));
       return typeof saved === 'boolean' ? saved : false;
-    } catch(e) {
+    } catch {
       return false;
     }
   });
@@ -188,7 +137,7 @@ function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('bonyan_current_user_v3')) || null;
-    } catch(e) {
+    } catch {
       return null;
     }
   });
@@ -225,28 +174,21 @@ function App() {
   // Toast State
   const [toastMessage, setToastMessage] = useState('');
 
+  const triggerToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 3000);
+  };
+
   // Creation / modification states for admins
   const [newAdminName, setNewAdminName] = useState('');
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [editingAdminId, setEditingAdminId] = useState(null);
 
-  const [newClassName, setNewClassName] = useState('');
-  const [newClassTeacher, setNewClassTeacher] = useState('');
-  const [newTeacherName, setNewTeacherName] = useState('');
-  const [newTeacherPassword, setNewTeacherPassword] = useState('123');
-  const [newTeacherWhatsapp, setNewTeacherWhatsapp] = useState('');
-  
   const [newProduct, setNewProduct] = useState({ name: '', image: '', price: 0, stock: 0 });
   const [editingProductId, setEditingProductId] = useState(null);
   
   const [gradesSearchQuery, setGradesSearchQuery] = useState('');
-
-  // Classroom teacher editing inline states
-  const [managingTeacherClassId, setManagingTeacherClassId] = useState(null);
-  const [editTeacherName, setEditTeacherName] = useState('');
-  const [editTeacherPassword, setEditTeacherPassword] = useState('123');
-  const [editTeacherWhatsapp, setEditTeacherWhatsapp] = useState('');
 
   // Advanced Classroom Management States
   const [classroomAction, setClassroomAction] = useState(null); // null | 'add_student' | 'add_teacher' | 'add_classroom' | 'edit_student' | 'edit_teacher' | 'edit_classroom'
@@ -323,12 +265,11 @@ function App() {
   const checkAndIncrementAiLimit = (userId) => {
     if (!userId) return false;
     const today = new Date().toLocaleDateString('en-US');
-    const userLimits = aiUsage[userId] || { count: 0, date: today };
-
-    if (userLimits.date !== today) {
-      userLimits.count = 0;
-      userLimits.date = today;
-    }
+    const rawLimits = aiUsage[userId] || { count: 0, date: today };
+    const userLimits = {
+      count: rawLimits.date !== today ? 0 : rawLimits.count,
+      date: today
+    };
 
     if (userLimits.count >= 20) {
       triggerToast('عذراً! لقد استهلكت حدك اليومي المسموح به (20 استفساراً بالذكاء الاصطناعي).');
@@ -428,11 +369,11 @@ function App() {
           students: bonyanDatabase.students,
           classrooms: bonyanDatabase.classrooms,
           teachers: bonyanDatabase.teachers,
-          admins: bonyanDatabase.admins,
-          storeProducts: storeProducts || [],
-          gradingHistory: gradingHistory || [],
-          purchaseOrders: purchaseOrders || [],
-          aiUsage: aiUsage || {}
+          admins: bonyanDatabase.admins || INITIAL_ADMINS,
+          storeProducts: INITIAL_STORE,
+          gradingHistory: [],
+          purchaseOrders: [],
+          aiUsage: {}
         };
         set(ref(db, '/'), seedData)
           .then(() => {
@@ -445,7 +386,8 @@ function App() {
       setIsCloudLoaded(true);
     }, (error) => {
       console.error('Firebase read error:', error);
-      triggerToast('خطأ: فشل الاتصال بقاعدة بيانات Firebase!');
+      setToastMessage('خطأ: فشل الاتصال بقاعدة بيانات Firebase!');
+      setTimeout(() => setToastMessage(''), 3000);
       setIsCloudLoaded(true);
     });
 
@@ -602,50 +544,33 @@ function App() {
     }
   }, [students, classrooms, teachers, admins, storeProducts, gradingHistory, purchaseOrders, aiUsage, isCloudLoaded, isDatabaseLoadedSuccessfully]);
 
-  // Force reset data from bonyanDatabase JSON if empty
-  useEffect(() => {
-    const savedStudents = JSON.parse(localStorage.getItem('bonyan_students_v3'));
-    if (!savedStudents || savedStudents.length === 0) {
-      localStorage.setItem('bonyan_students_v3', JSON.stringify(bonyanDatabase.students));
-      localStorage.setItem('bonyan_classrooms_v3', JSON.stringify(bonyanDatabase.classrooms));
-      setStudents(bonyanDatabase.students);
-      setClassrooms(bonyanDatabase.classrooms);
-    }
-    
-    // Purge fake teachers 't1' & 't2' on startup if present in active state
-    setTeachers(prev => prev.filter(t => t.id !== 't1' && t.id !== 't2'));
-    setClassrooms(prev => prev.map(c => {
-      if (c.teacherId === 't1' || c.teacherId === 't2') {
-        return { ...c, teacherId: '' };
-      }
-      return c;
-    }));
-  }, []);
+
 
   // Reset all grading inputs to defaults when switching/closing student selection to avoid carrying over grades
   useEffect(() => {
-    setGradeMemorization(0);
-    setGradeVersesCount(5);
-    setGradeBehavior(0);
-    setGradeAttendance(0);
-    setGradeActivity(0);
-    setNewHomeworkText('');
+    setTimeout(() => {
+      setGradeMemorization(0);
+      setGradeVersesCount(5);
+      setGradeBehavior(0);
+      setGradeAttendance(0);
+      setGradeActivity(0);
+      setNewHomeworkText('');
+    }, 0);
   }, [selectedStudentId]);
 
   // Pre-fill profile settings
   useEffect(() => {
     if (currentUser) {
-      setProfileName(currentUser.name);
-      setProfilePassword(currentUser.password || '123');
-      setProfileAvatar(currentUser.avatar || '');
-      setProfileWhatsapp(currentUser.whatsapp || '');
+      setTimeout(() => {
+        setProfileName(currentUser.name);
+        setProfilePassword(currentUser.password || '123');
+        setProfileAvatar(currentUser.avatar || '');
+        setProfileWhatsapp(currentUser.whatsapp || '');
+      }, 0);
     }
   }, [studentTab, teacherTabState, adminTab, currentUser]);
 
-  const triggerToast = (msg) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(''), 3000);
-  };
+
 
   // Single Login Page Handler
   const handleLogin = (e) => {
@@ -817,7 +742,7 @@ function App() {
     }));
 
     const newOrder = {
-      id: 'o_' + Date.now(),
+      id: generateUniqueId('o'),
       studentId: studentData.id,
       studentName: studentData.name,
       productName: product.name,
@@ -900,7 +825,7 @@ function App() {
     }
 
     const historyItem = {
-      id: 'g_' + Date.now(),
+      id: generateUniqueId('g'),
       studentId: selectedStudentId,
       isoDate: getLocalDateString(),
       date: new Date().toLocaleDateString('ar-EG', { weekday: 'long', month: 'numeric', day: 'numeric' }),
@@ -943,7 +868,7 @@ function App() {
       triggerToast('تم تحديث حساب المشرف');
     } else {
       const newAdmin = {
-        id: 'a_' + Date.now(),
+        id: generateUniqueId('a'),
         name: newAdminName,
         email: newAdminEmail,
         password: newAdminPassword
@@ -969,83 +894,7 @@ function App() {
     triggerToast('تم حذف حساب الآدمن');
   };
 
-  // Admin Classrooms
-  const addClassroom = (e) => {
-    e.preventDefault();
-    if (!newClassName) return;
 
-    let newTeacherId = '';
-    if (newTeacherName) {
-      const newTeacher = {
-        id: 't_' + Date.now(),
-        name: newTeacherName,
-        classroomId: 'c_' + Date.now(),
-        password: newTeacherPassword || '123',
-        whatsapp: newTeacherWhatsapp
-      };
-      setTeachers(prev => [...prev, newTeacher]);
-      newTeacherId = newTeacher.id;
-    }
-
-    const newClass = {
-      id: 'c_' + Date.now(),
-      name: newClassName,
-      teacherId: newTeacherId || newClassTeacher,
-      totalPoints: 0
-    };
-
-    setClassrooms(prev => [...prev, newClass]);
-    setNewClassName('');
-    setNewTeacherName('');
-    setNewTeacherPassword('123');
-    setNewTeacherWhatsapp('');
-    setNewClassTeacher('');
-    triggerToast('تم إضافة الحلقة بنجاح');
-  };
-
-  // Assign or Edit Classroom Teacher directly
-  const handleSaveClassroomTeacher = (e) => {
-    e.preventDefault();
-    if (!managingTeacherClassId) return;
-
-    const existingTeacher = teachers.find(t => t.classroomId === managingTeacherClassId);
-
-    if (existingTeacher) {
-      // Update details
-      setTeachers(prev => prev.map(t => {
-        if (t.id === existingTeacher.id) {
-          return { ...t, name: editTeacherName, password: editTeacherPassword, whatsapp: editTeacherWhatsapp };
-        }
-        return t;
-      }));
-      triggerToast('تم تحديث بيانات معلم الحلقة بنجاح');
-    } else {
-      // Add new
-      const newTId = 't_' + Date.now();
-      const newTeacher = {
-        id: newTId,
-        name: editTeacherName,
-        password: editTeacherPassword,
-        whatsapp: editTeacherWhatsapp,
-        classroomId: managingTeacherClassId
-      };
-      setTeachers(prev => [...prev, newTeacher]);
-      
-      // Update classroom
-      setClassrooms(prev => prev.map(c => {
-        if (c.id === managingTeacherClassId) {
-          return { ...c, teacherId: newTId };
-        }
-        return c;
-      }));
-      triggerToast('تم إنشاء حساب المعلم وتعيينه للحلقة بنجاح');
-    }
-
-    setManagingTeacherClassId(null);
-    setEditTeacherName('');
-    setEditTeacherPassword('123');
-    setEditTeacherWhatsapp('');
-  };
 
   const handleDeleteClassroomTeacher = (classId) => {
     const teacher = teachers.find(t => t.classroomId === classId);
@@ -1060,7 +909,6 @@ function App() {
     }));
 
     triggerToast('تم حذف حساب المعلم وإلغاء تعيينه من الحلقة');
-    setManagingTeacherClassId(null);
   };
 
   // Advanced Classroom Management Handlers
@@ -1093,7 +941,7 @@ function App() {
         return;
       }
       const newStudent = {
-        id: 's_' + Date.now(),
+        id: generateUniqueId('s'),
         name: studentFormName,
         username: studentFormUsername,
         password: studentFormPassword,
@@ -1158,9 +1006,9 @@ function App() {
       }
       triggerToast('تم تعديل بيانات المعلم بنجاح');
     } else {
-      const newTId = 't_' + Date.now();
+      const newTId = generateUniqueId('t');
       const cleanName = teacherFormName.trim();
-      const generatedUsername = `teacher.${Date.now().toString().slice(-4)}`;
+      const generatedUsername = `teacher.${generateTeacherUsernameSuffix()}`;
       const newTeacher = {
         id: newTId,
         name: cleanName,
@@ -1233,7 +1081,7 @@ function App() {
       }
       triggerToast('تم تعديل بيانات الحلقة بنجاح');
     } else {
-      const newCId = 'c_' + Date.now();
+      const newCId = generateUniqueId('c');
       const newClass = {
         id: newCId,
         name: classFormName,
@@ -1447,7 +1295,7 @@ function App() {
       triggerToast('تم تحديث الهدية في المتجر');
     } else {
       const newP = {
-        id: 'p_' + Date.now(),
+        id: generateUniqueId('p'),
         name: newProduct.name,
         image: newProduct.image || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=300',
         price: Number(newProduct.price),
@@ -3547,6 +3395,10 @@ function App() {
                                   ) : (
                                     <span style={{ color: '#aaa', fontStyle: 'italic' }}>غير مسجل</span>
                                   )}
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <span style={{ color: 'var(--color-text-gray)' }}>الحلقة الحالية:</span>
+                                  <strong>{studentClass ? studentClass.name : 'بدون حلقة'}</strong>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                   <span style={{ color: 'var(--color-text-gray)' }}>إجمالي النقاط:</span>
