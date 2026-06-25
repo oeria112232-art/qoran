@@ -377,15 +377,15 @@ function App() {
   useEffect(() => {
     const dbRef = ref(db, '/');
     const unsubscribe = onValue(dbRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data && data.students && data.students.length >= 300) {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
         // Mark this update as incoming from cloud to prevent echo write
         isIncomingCloudUpdate.current = true;
         
-        setStudents(data.students);
-        setClassrooms(data.classrooms);
-        setTeachers(data.teachers);
-        setAdmins(data.admins);
+        if (data.students) setStudents(data.students);
+        if (data.classrooms) setClassrooms(data.classrooms);
+        if (data.teachers) setTeachers(data.teachers);
+        if (data.admins) setAdmins(data.admins);
         setStoreProducts(data.storeProducts || []);
         setGradingHistory((data.gradingHistory || []).filter(item => item.id !== 'g1' && item.id !== 'g2'));
         setPurchaseOrders(data.purchaseOrders || []);
@@ -394,7 +394,7 @@ function App() {
         console.log('Successfully synced database from Firebase Realtime Database.');
         setIsDatabaseLoadedSuccessfully(true);
       } else {
-        // If Firebase database is empty, seed it with initial bonyanDatabase JSON data
+        // If Firebase database is empty (does not exist), seed it with initial bonyanDatabase JSON data
         console.log('Firebase is empty. Seeding Firebase with initial database.');
         const seedData = {
           students: bonyanDatabase.students,
@@ -490,6 +490,16 @@ function App() {
       return c;
     }));
   }, []);
+
+  // Reset all grading inputs to defaults when switching/closing student selection to avoid carrying over grades
+  useEffect(() => {
+    setGradeMemorization(0);
+    setGradeVersesCount(5);
+    setGradeBehavior(0);
+    setGradeAttendance(0);
+    setGradeActivity(0);
+    setNewHomeworkText('');
+  }, [selectedStudentId]);
 
   // Pre-fill profile settings
   useEffect(() => {
@@ -1896,51 +1906,6 @@ function App() {
                 {teacherSubTab === 'homework' && (
                   <div style={{ padding: '0 1rem', textAlign: 'right' }}>
                     
-                    {/* Collective Homework Assignment Panel */}
-                    <div style={{ backgroundColor: '#ffffff', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '1.2rem', marginBottom: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
-                      <h3 style={{ color: 'var(--color-primary)', fontWeight: '700', marginBottom: '0.8rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'flex-start' }}>
-                        <span>👥</span>
-                        <span>تكليف الحلقة بالكامل (واجب جماعي موحد)</span>
-                      </h3>
-                      <p style={{ color: 'var(--color-text-gray)', fontSize: '0.8rem', marginBottom: '1rem' }}>
-                        اكتب نص الدرس أو الواجب بالأسفل لتطبيقه وتعميمه على جميع طلاب حلقة التحفيظ فوراً دفعة واحدة.
-                      </p>
-                      
-                      <form onSubmit={handleAssignCollectiveHomework}>
-                        <div className="admin-form-group">
-                          <label>نص الواجب المشترك للحلقة:</label>
-                          <textarea 
-                            className="admin-input" 
-                            style={{ height: '70px', padding: '0.5rem', resize: 'none' }} 
-                            placeholder="مثال: مراجعة سورة النبأ وحفظ سورة النازعات من 1-15..."
-                            value={collectiveHomeworkText}
-                            onChange={e => setCollectiveHomeworkText(e.target.value)}
-                            required
-                          />
-                        </div>
-
-                        {/* Quick Template Buttons */}
-                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--color-text-gray)', display: 'block', width: '100%' }}>💡 قوالب سريعة للتكليف:</span>
-                          {['حفظ سورة الملك كاملة', 'مراجعة جزء عم كاملاً', 'حفظ جزء تبارك', 'تسميع سورة البقرة 1-50'].map(t => (
-                            <button 
-                              key={t}
-                              type="button" 
-                              className="chat-suggestion-btn" 
-                              style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', margin: 0 }}
-                              onClick={() => setCollectiveHomeworkText(t)}
-                            >
-                              {t}
-                            </button>
-                          ))}
-                        </div>
-
-                        <button type="submit" className="submit-grades-btn" style={{ margin: 0, height: '42px', width: '100%', fontSize: '0.95rem' }}>
-                          📢 تعميم الواجب على جميع طلاب الحلقة
-                        </button>
-                      </form>
-                    </div>
-
                     {/* Individual Homework Assignment Panel */}
                     <div style={{ backgroundColor: '#ffffff', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '1.2rem', boxShadow: 'var(--shadow-sm)', marginBottom: '1.5rem' }}>
                       <h3 style={{ color: 'var(--color-primary)', fontWeight: '700', marginBottom: '0.8rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'flex-start' }}>
@@ -1999,6 +1964,51 @@ function App() {
                           );
                         })}
                       </div>
+                    </div>
+
+                    {/* Collective Homework Assignment Panel */}
+                    <div style={{ backgroundColor: '#ffffff', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '1.2rem', marginBottom: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                      <h3 style={{ color: 'var(--color-primary)', fontWeight: '700', marginBottom: '0.8rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'flex-start' }}>
+                        <span>👥</span>
+                        <span>تكليف الحلقة بالكامل (واجب جماعي موحد)</span>
+                      </h3>
+                      <p style={{ color: 'var(--color-text-gray)', fontSize: '0.8rem', marginBottom: '1rem' }}>
+                        اكتب نص الدرس أو الواجب بالأسفل لتطبيقه وتعميمه على جميع طلاب حلقة التحفيظ فوراً دفعة واحدة.
+                      </p>
+                      
+                      <form onSubmit={handleAssignCollectiveHomework}>
+                        <div className="admin-form-group">
+                          <label>نص الواجب المشترك للحلقة:</label>
+                          <textarea 
+                            className="admin-input" 
+                            style={{ height: '70px', padding: '0.5rem', resize: 'none' }} 
+                            placeholder="مثال: مراجعة سورة النبأ وحفظ سورة النازعات من 1-15..."
+                            value={collectiveHomeworkText}
+                            onChange={e => setCollectiveHomeworkText(e.target.value)}
+                            required
+                          />
+                        </div>
+
+                        {/* Quick Template Buttons */}
+                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--color-text-gray)', display: 'block', width: '100%' }}>💡 قوالب سريعة للتكليف:</span>
+                          {['حفظ سورة الملك كاملة', 'مراجعة جزء عم كاملاً', 'حفظ جزء تبارك', 'تسميع سورة البقرة 1-50'].map(t => (
+                            <button 
+                              key={t}
+                              type="button" 
+                              className="chat-suggestion-btn" 
+                              style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', margin: 0 }}
+                              onClick={() => setCollectiveHomeworkText(t)}
+                            >
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+
+                        <button type="submit" className="submit-grades-btn" style={{ margin: 0, height: '42px', width: '100%', fontSize: '0.95rem' }}>
+                          📢 تعميم الواجب على جميع طلاب الحلقة
+                        </button>
+                      </form>
                     </div>
 
                   </div>
