@@ -33,6 +33,57 @@ const getActiveBundleFiles = () => {
   }
 };
 
+// Global in-memory cache for the API key to bypass read-only file systems
+let cachedApiKey = '';
+
+const getGeminiApiKey = () => {
+  return new Promise((resolve) => {
+    if (cachedApiKey) {
+      return resolve(cachedApiKey);
+    }
+    
+    // Attempt dynamic read from api_key.txt
+    const keyFilePath = path.resolve(__dirname, 'api_key.txt');
+    if (fs.existsSync(keyFilePath)) {
+      try {
+        const fileKey = fs.readFileSync(keyFilePath, 'utf8').trim();
+        if (fileKey && fileKey.length > 5) {
+          cachedApiKey = fileKey;
+          return resolve(cachedApiKey);
+        }
+      } catch (e) {
+        console.error('Failed to read api_key.txt:', e.message);
+      }
+    }
+
+    // Fallback: Fetch directly from Firebase Realtime Database using REST API
+    console.log('Fetching Gemini API Key from Firebase REST API...');
+    const dbUrl = 'https://quran-bbede-default-rtdb.firebaseio.com/geminiApiKey.json';
+    https.get(dbUrl, (apiRes) => {
+      let data = '';
+      apiRes.on('data', chunk => { data += chunk; });
+      apiRes.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed && typeof parsed === 'string') {
+            cachedApiKey = parsed.trim();
+            console.log('Successfully fetched and cached Gemini API Key from Firebase REST.');
+            resolve(cachedApiKey);
+          } else {
+            resolve('');
+          }
+        } catch {
+          resolve('');
+        }
+      });
+    }).on('error', (err) => {
+      console.error('Failed to fetch api key from Firebase REST:', err.message);
+      resolve('');
+    });
+  });
+};
+
+
 const MIME_TYPES = {
   '.html': 'text/html',
   '.css': 'text/css',
@@ -100,9 +151,15 @@ const server = http.createServer((req, res) => {
           res.end(JSON.stringify({ error: 'Invalid key' }));
           return;
         }
-        const keyFilePath = path.resolve(__dirname, 'api_key.txt');
-        fs.writeFileSync(keyFilePath, key.trim(), 'utf8');
-        console.log('Gemini API Key updated via admin UI.');
+        cachedApiKey = key.trim();
+        // Try writing to disk but ignore errors if read-only filesystem
+        try {
+          const keyFilePath = path.resolve(__dirname, 'api_key.txt');
+          fs.writeFileSync(keyFilePath, key.trim(), 'utf8');
+        } catch (diskErr) {
+          console.warn('Could not write API key to disk (possibly read-only filesystem):', diskErr.message);
+        }
+        console.log('Gemini API Key updated in server memory.');
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true }));
       } catch (e) {
@@ -117,23 +174,12 @@ const server = http.createServer((req, res) => {
   if (requestUrl.startsWith('/api/ai') && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => { body += chunk; });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const { userPrompt, systemInstruction, imageBase64 } = JSON.parse(body);
 
-        // Read API key from file or env
-        let keyToUse = process.env.GEMINI_API_KEY || '';
-        const keyFilePath = path.resolve(__dirname, 'api_key.txt');
-        if (fs.existsSync(keyFilePath)) {
-          try {
-            const fileKey = fs.readFileSync(keyFilePath, 'utf8').trim();
-            if (fileKey && fileKey.length > 5) {
-              keyToUse = fileKey;
-            }
-          } catch (e) {
-            console.error('Failed to read api_key.txt:', e);
-          }
-        }
+        // Fetch key from our secure memory / Firebase REST resolver
+        const keyToUse = await getGeminiApiKey();
 
         if (!keyToUse) {
           res.writeHead(400, { 'Content-Type': 'application/json' });

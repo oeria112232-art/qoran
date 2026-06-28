@@ -569,6 +569,7 @@ function App() {
         setGradingHistory(cloudGradingHistory);
         setPurchaseOrders(cloudPurchaseOrders);
         if (data.aiUsage) setAiUsage(data.aiUsage);
+        if (data.geminiApiKey) setGeminiApiKeyInput(data.geminiApiKey);
 
         // Update the refs with the incoming cloud values to prevent triggering save effect
         prevStudentsRef.current = cloudStudents;
@@ -791,20 +792,20 @@ function App() {
       return;
     }
     try {
-      const res = await fetch('/api/set-key', {
+      // 1. Write directly to Firebase Realtime Database
+      await set(ref(db, '/geminiApiKey'), geminiApiKeyInput.trim());
+
+      // 2. Notify the local express/http server memory cache
+      await fetch('/api/set-key', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: geminiApiKeyInput.trim(), adminPassword: 'bonyan2025admin' })
       });
-      const data = await res.json();
-      if (data.success) {
-        triggerToast('✅ تم حفظ مفتاح الذكاء الاصطناعي بنجاح! يعمل الذكاء الاصطناعي الآن.');
-        setGeminiApiKeyInput('');
-      } else {
-        triggerToast('❌ خطأ في حفظ المفتاح: ' + (data.error || 'غير معروف'));
-      }
-    } catch {
-      triggerToast('❌ فشل الاتصال بالسيرفر. تأكد من أن الموقع يعمل.');
+      
+      triggerToast('✅ تم حفظ وتفعيل مفتاح الذكاء الاصطناعي بنجاح في قاعدة البيانات السحابية!');
+    } catch (err) {
+      console.error('Firebase save key error:', err);
+      triggerToast('❌ فشل حفظ المفتاح في السحابة. يرجى التحقق من اتصال الإنترنت.');
     }
   };
 
