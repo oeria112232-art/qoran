@@ -134,7 +134,20 @@ const server = http.createServer((req, res) => {
         res.end('Server Error');
         return;
       }
-      res.writeHead(200, { 'Content-Type': contentType });
+      
+      const responseHeaders = { 'Content-Type': contentType };
+      
+      // Prevent browser caching for HTML files so users always get the latest build references
+      if (ext === '.html') {
+        responseHeaders['Cache-Control'] = 'no-store, no-cache, must-revalidate, proxy-revalidate';
+        responseHeaders['Pragma'] = 'no-cache';
+        responseHeaders['Expires'] = '0';
+      } else {
+        // Cache static assets (JS, CSS, images) for up to 1 year since Vite uses unique hashes in filenames
+        responseHeaders['Cache-Control'] = 'public, max-age=31536000, immutable';
+      }
+
+      res.writeHead(200, responseHeaders);
       res.end(content);
     });
   });
