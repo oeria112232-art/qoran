@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 database_live.json
+api_key.txt
 
 # Editor directories and files
 .vscode/*
