@@ -164,6 +164,9 @@ function App() {
   const [gradeActivity, setGradeActivity] = useState(0); // 0 to 10 (Admin exclusive)
   const [newHomeworkText, setNewHomeworkText] = useState('');
 
+  // Database load status
+  const [databaseLoaded, setDatabaseLoaded] = useState(false);
+
   // Profile Edit Form state
   const [profileName, setProfileName] = useState('');
   const [profilePassword, setProfilePassword] = useState('');
@@ -578,6 +581,7 @@ function App() {
         prevAiUsageRef.current = data.aiUsage || {};
 
         
+        setDatabaseLoaded(true);
         console.log('Successfully synced database from Firebase Realtime Database.');
       } else {
         // If Firebase database is empty (does not exist), seed it with initial bonyanDatabase JSON data
@@ -595,6 +599,7 @@ function App() {
         set(ref(db, '/'), seedData)
           .then(() => {
             console.log('Successfully seeded initial database to Firebase.');
+            setDatabaseLoaded(true);
           })
           .catch((error) => {
             console.error('Failed to seed initial database to Firebase:', error);
@@ -1617,8 +1622,42 @@ function App() {
     : null;
   const teacherStudentsList = teacherClassroom ? students.filter(s => s.classroomId === teacherClassroom.id) : [];
 
-  // Logged in student data
-  const currentStudentData = currentUser?.role === 'student' ? students.find(s => s.id === currentUser.id) : null;
+  // Show premium loader if database is still synchronizing from Firebase
+  if (!databaseLoaded) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#ffffff',
+        fontFamily: 'inherit',
+        direction: 'rtl',
+        padding: '2rem',
+        textAlign: 'center'
+      }}>
+        <div style={{
+          width: '65px',
+          height: '65px',
+          border: '5px solid rgba(255,255,255,0.2)',
+          borderTop: '5px solid #ffffff',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite',
+          marginBottom: '1.5rem'
+        }}></div>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+        <h2 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '0.5rem' }}>منصة بُنيان</h2>
+        <p style={{ opacity: 0.9, fontSize: '0.95rem' }}>جاري مزامنة قاعدة البيانات والتحقق من أمان الاتصال...</p>
+      </div>
+    );
+  }
 
   // Render Login page if not authenticated
   if (!isLoggedIn) {
@@ -1679,6 +1718,9 @@ function App() {
       </div>
     );
   }
+
+  // Logged in student data
+  const currentStudentData = currentUser?.role === 'student' ? students.find(s => s.id === currentUser.id) : null;
 
   const isWideLayout = ['admin', 'superadmin', 'teacher', 'store'].includes(currentUser.role);
 
