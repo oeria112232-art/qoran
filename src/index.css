@@ -881,7 +881,7 @@ body {
   padding: 2rem 1.5rem;
   margin: 1.5rem auto;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   text-align: center;
 }
 
@@ -1557,4 +1557,105 @@ body {
   }
 }
 
+/* ===== LESSON CARDS ===== */
+.lesson-card {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 1.1rem 1.2rem;
+  margin-bottom: 1rem;
+  text-align: right;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  position: relative;
+  transition: box-shadow 0.2s;
+}
+.lesson-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+}
+.lesson-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.lesson-card-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+.lesson-card-date {
+  font-size: 0.75rem;
+  color: var(--color-text-gray);
+  white-space: nowrap;
+  background: var(--color-bg-light);
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+}
+.lesson-card-content {
+  font-size: 0.88rem;
+  color: var(--color-text-dark);
+  line-height: 1.6;
+  margin-bottom: 0.5rem;
+}
+.lesson-card-homework {
+  background: linear-gradient(135deg, #fff8e1 0%, #fff3cd 100%);
+  border: 1px solid #ffe082;
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.83rem;
+  color: #795548;
+  margin-top: 0.5rem;
+}
+.lesson-card-homework strong {
+  color: #e65100;
+}
+.lesson-add-form {
+  background: linear-gradient(135deg, #f0f7f4 0%, #e8f5e9 100%);
+  border: 1px solid #c8e6c9;
+  border-radius: 14px;
+  padding: 1.2rem;
+  margin-bottom: 1.5rem;
+}
+.lesson-add-form textarea {
+  width: 100%;
+  min-height: 80px;
+  resize: vertical;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  font-family: inherit;
+  font-size: 0.88rem;
+  direction: rtl;
+  background: #fff;
+  color: var(--color-text-dark);
+  box-sizing: border-box;
+}
+.lesson-add-form textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
 
+/* ===== ADMIN STORE VIEW ===== */
+.admin-store-view-tab {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.2rem;
+}
+.admin-store-view-tab button {
+  flex: 1;
+  padding: 0.55rem 0.8rem;
+  border-radius: 8px;
+  border: 1.5px solid var(--color-border);
+  background: #fff;
+  color: var(--color-text-dark);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.admin-store-view-tab button.active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}

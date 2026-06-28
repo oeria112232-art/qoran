@@ -145,10 +145,16 @@ function App() {
   const [loginPassword, setLoginPassword] = useState('');
 
   // Layout tabs
-  const [studentTab, setStudentTab] = useState('dashboard'); // 'dashboard' | 'store' | 'profile'
-  const [teacherTabState, setTeacherTabState] = useState('classroom'); // 'classroom' | 'profile'
+  const [studentTab, setStudentTab] = useState('dashboard'); // 'dashboard' | 'store' | 'lessons' | 'ai' | 'profile'
+  const [teacherTabState, setTeacherTabState] = useState('classroom'); // 'classroom' | 'lessons' | 'profile'
   const [adminTab, setAdminTab] = useState('store');
-  const [storeSubTab, setStoreSubTab] = useState('orders'); // 'orders' | 'grades' | 'classrooms' | 'store' | 'export' | 'admins' | 'profile'
+  const [storeSubTab, setStoreSubTab] = useState('orders');
+
+  // Lessons state
+  const [lessons, setLessons] = useState([]);
+  const [newLessonTitle, setNewLessonTitle] = useState('');
+  const [newLessonContent, setNewLessonContent] = useState('');
+  const [newLessonHomework, setNewLessonHomework] = useState('');
   
   // Roster / grading workflow
   const [selectedStudentId, setSelectedStudentId] = useState(null); // For teacher/admin grading view
@@ -293,7 +299,8 @@ function App() {
     storeProducts: nextStoreProducts,
     gradingHistory: nextGradingHistory,
     purchaseOrders: nextPurchaseOrders,
-    aiUsage: nextAiUsage
+    aiUsage: nextAiUsage,
+    lessons: nextLessons
   }) => {
     try {
       const updates = {};
@@ -427,6 +434,12 @@ function App() {
         prevAiUsageRef.current = nextAiUsage;
       }
 
+      // 9. Compare lessons
+      if (nextLessons !== undefined) {
+        const arr = ensureArray(nextLessons);
+        updates['/lessons'] = arr;
+        hasUpdates = true;
+      }
       if (hasUpdates) {
         await update(ref(db, '/'), updates);
         console.log('Successfully saved atomic updates to Firebase directly:', Object.keys(updates));
@@ -535,6 +548,8 @@ function App() {
         const cloudGradingHistory = ensureArray(data.gradingHistory).filter(item => item.id !== 'g1' && item.id !== 'g2');
         const cloudPurchaseOrders = ensureArray(data.purchaseOrders);
 
+        const cloudLessons = ensureArray(data.lessons);
+
         // Mark this update as incoming from cloud to prevent echo write
         isIncomingCloudUpdate.current = true;
         
@@ -546,6 +561,7 @@ function App() {
         setGradingHistory(cloudGradingHistory);
         setPurchaseOrders(cloudPurchaseOrders);
         if (data.aiUsage) setAiUsage(data.aiUsage);
+        if (data.lessons) setLessons(cloudLessons);
 
         // Update the refs with the incoming cloud values to prevent triggering save effect
         prevStudentsRef.current = cloudStudents;
@@ -556,6 +572,7 @@ function App() {
         prevGradingHistoryRef.current = cloudGradingHistory;
         prevPurchaseOrdersRef.current = cloudPurchaseOrders;
         prevAiUsageRef.current = data.aiUsage || {};
+
         
         console.log('Successfully synced database from Firebase Realtime Database.');
       } else {
@@ -780,6 +797,44 @@ function App() {
     } catch {
       triggerToast('❌ فشل الاتصال بالسيرفر. تأكد من أن الموقع يعمل.');
     }
+  };
+
+  // Add a new lesson (teacher saves a lesson for their classroom)
+  const handleAddLesson = (e) => {
+    e.preventDefault();
+    if (!newLessonTitle.trim() || !newLessonContent.trim()) {
+      triggerToast('يرجى إدخال عنوان ومحتوى الدرس على الأقل!');
+      return;
+    }
+    const teacherClassroomId = currentUser?.classroomId;
+    if (!teacherClassroomId) {
+      triggerToast('لا يوجد حلقة مسندة لك. تواصل مع المشرف.');
+      return;
+    }
+    const newLesson = {
+      id: generateUniqueId('l'),
+      classroomId: teacherClassroomId,
+      teacherName: currentUser.name,
+      title: newLessonTitle.trim(),
+      content: newLessonContent.trim(),
+      homework: newLessonHomework.trim(),
+      date: new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })
+    };
+    const nextLessons = [newLesson, ...lessons];
+    setLessons(nextLessons);
+    saveUpdatesToFirebase({ lessons: nextLessons });
+    setNewLessonTitle('');
+    setNewLessonContent('');
+    setNewLessonHomework('');
+    triggerToast('✅ تم حفظ الدرس بنجاح وهو مرئي للطلاب الآن!');
+  };
+
+  // Delete a lesson
+  const handleDeleteLesson = (lessonId) => {
+    const nextLessons = lessons.filter(l => l.id !== lessonId);
+    setLessons(nextLessons);
+    saveUpdatesToFirebase({ lessons: nextLessons });
+    triggerToast('تم حذف الدرس.');
   };
 
   // Get Student Ranking
@@ -1865,6 +1920,48 @@ function App() {
               </div>
             )}
 
+            {studentTab === 'lessons' && (() => {
+              const studentClassroomId = currentStudentData?.classroomId;
+              const myLessons = lessons.filter(l => l.classroomId === studentClassroomId);
+              return (
+                <div style={{ padding: '1rem 1rem 5rem 1rem' }}>
+                  <div style={{ textAlign: 'right', marginBottom: '1rem' }}>
+                    <h2 style={{ color: 'var(--color-primary)', fontWeight: '700', fontSize: '1.2rem' }}>📚 دروسي السابقة</h2>
+                    <p style={{ fontSize: '0.83rem', color: 'var(--color-text-gray)', marginTop: '0.3rem' }}>
+                      جميع الدروس التي سجّلها معلمك لحلقتك
+                    </p>
+                  </div>
+                  {myLessons.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--color-text-gray)', background: '#f9f9f9', borderRadius: '16px' }}>
+                      <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>📭</div>
+                      <p>لا توجد دروس محفوظة من معلمك بعد.</p>
+                      <p style={{ fontSize: '0.8rem', marginTop: '0.3rem' }}>ستظهر هنا فور قيام معلمك بإضافتها.</p>
+                    </div>
+                  ) : (
+                    myLessons.map(lesson => (
+                      <div key={lesson.id} className="lesson-card">
+                        <div className="lesson-card-header">
+                          <span className="lesson-card-title">📗 {lesson.title}</span>
+                          <span className="lesson-card-date">📅 {lesson.date}</span>
+                        </div>
+                        <div className="lesson-card-content">{lesson.content}</div>
+                        {lesson.homework && (
+                          <div className="lesson-card-homework">
+                            <strong>📝 الواجب المنزلي: </strong>{lesson.homework}
+                          </div>
+                        )}
+                        {lesson.teacherName && (
+                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-gray)', marginTop: '0.4rem', textAlign: 'right' }}>
+                            👨‍🏫 أ. {lesson.teacherName}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              );
+            })()}
+
             {studentTab === 'ai' && (
               <div className="ai-chat-container">
                 <div className="ai-chat-header">
@@ -1958,6 +2055,10 @@ function App() {
                 <span className="nav-icon">🛒</span>
                 <span>المتجر</span>
               </button>
+              <button className={`nav-item ${studentTab === 'lessons' ? 'active' : ''}`} onClick={() => setStudentTab('lessons')}>
+                <span className="nav-icon">📖</span>
+                <span>دروسي</span>
+              </button>
               <button className={`nav-item ${studentTab === 'ai' ? 'active' : ''}`} onClick={() => setStudentTab('ai')}>
                 <span className="nav-icon">🤖</span>
                 <span>المساعد الذكي</span>
@@ -1979,10 +2080,94 @@ function App() {
               <button className={`admin-tab-btn ${teacherTabState === 'classroom' ? 'active' : ''}`} onClick={() => { setTeacherTabState('classroom'); setSelectedStudentId(null); }}>
                 إدارة حلقة التحفيظ
               </button>
+              <button className={`admin-tab-btn ${teacherTabState === 'lessons' ? 'active' : ''}`} onClick={() => setTeacherTabState('lessons')}>
+                📖 سجل الدروس
+              </button>
               <button className={`admin-tab-btn ${teacherTabState === 'profile' ? 'active' : ''}`} onClick={() => setTeacherTabState('profile')}>
                 إعدادات الحساب الشخصي
               </button>
             </div>
+
+            {/* Teacher Lessons Tab */}
+            {teacherTabState === 'lessons' && (
+              <div style={{ padding: '1rem 1.2rem' }}>
+                <h3 style={{ color: 'var(--color-primary)', fontWeight: '700', marginBottom: '1rem', textAlign: 'right' }}>
+                  📖 سجل دروس الحلقة
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--color-text-gray)', textAlign: 'right', marginBottom: '1rem' }}>
+                  الدروس التي تحفظها هنا ستظهر لجميع طلاب حلقتك في قسم "دروسي" الخاص بهم.
+                </p>
+
+                {/* Add New Lesson Form */}
+                <form onSubmit={handleAddLesson} className="lesson-add-form">
+                  <h4 style={{ color: '#2e7d32', fontWeight: '700', marginBottom: '0.8rem', textAlign: 'right' }}>
+                    ➕ إضافة درس جديد
+                  </h4>
+                  <div className="admin-form-group" style={{ marginBottom: '0.6rem' }}>
+                    <input
+                      type="text"
+                      className="admin-input"
+                      placeholder="عنوان الدرس (مثال: سورة البقرة - الآيات 1-10)"
+                      value={newLessonTitle}
+                      onChange={e => setNewLessonTitle(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="admin-form-group" style={{ marginBottom: '0.6rem' }}>
+                    <textarea
+                      placeholder="محتوى الدرس وملاحظاته..."
+                      value={newLessonContent}
+                      onChange={e => setNewLessonContent(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="admin-form-group" style={{ marginBottom: '0.8rem' }}>
+                    <textarea
+                      placeholder="الواجب المنزلي (اختياري) - ما يجب على الطلاب مراجعته..."
+                      value={newLessonHomework}
+                      onChange={e => setNewLessonHomework(e.target.value)}
+                      style={{ minHeight: '60px' }}
+                    />
+                  </div>
+                  <button type="submit" className="modern-btn-primary" style={{ width: '100%' }}>
+                    💾 حفظ الدرس ونشره للطلاب
+                  </button>
+                </form>
+
+                {/* Lessons List */}
+                <div>
+                  {lessons.filter(l => l.classroomId === currentUser?.classroomId).length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-gray)', background: '#f9f9f9', borderRadius: '12px' }}>
+                      📭 لا توجد دروس محفوظة بعد. ابدأ بإضافة أول درس لحلقتك!
+                    </div>
+                  ) : (
+                    lessons
+                      .filter(l => l.classroomId === currentUser?.classroomId)
+                      .map(lesson => (
+                        <div key={lesson.id} className="lesson-card">
+                          <div className="lesson-card-header">
+                            <span className="lesson-card-title">📗 {lesson.title}</span>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                              <span className="lesson-card-date">📅 {lesson.date}</span>
+                              <button
+                                onClick={() => handleDeleteLesson(lesson.id)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: '#e53935' }}
+                                title="حذف الدرس"
+                              >🗑️</button>
+                            </div>
+                          </div>
+                          <div className="lesson-card-content">{lesson.content}</div>
+                          {lesson.homework && (
+                            <div className="lesson-card-homework">
+                              <strong>📝 الواجب المنزلي: </strong>{lesson.homework}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                  )}
+                </div>
+              </div>
+            )}
 
             {teacherTabState === 'classroom' && selectedStudentId === null && (
               /* Classroom student list view */
@@ -3970,22 +4155,65 @@ function App() {
             {adminTab === 'store' && (
               <div>
                 {/* Sub tabs for Store */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.2rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.2rem', flexWrap: 'wrap' }}>
                   <button 
                     className="buy-btn" 
-                    style={{ flex: 1, margin: 0, padding: '0.6rem', fontSize: '0.9rem', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: storeSubTab === 'orders' ? 'var(--color-primary)' : '#ffffff', color: storeSubTab === 'orders' ? '#ffffff' : 'var(--color-text-dark)', fontWeight: '700' }}
+                    style={{ flex: 1, margin: 0, padding: '0.6rem', fontSize: '0.85rem', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: storeSubTab === 'orders' ? 'var(--color-primary)' : '#ffffff', color: storeSubTab === 'orders' ? '#ffffff' : 'var(--color-text-dark)', fontWeight: '700', minWidth: '120px' }}
                     onClick={() => setStoreSubTab('orders')}
                   >
-                    🛒 طلبات تسليم الجوائز والمكافآت ({purchaseOrders.filter(o => o.status === 'pending').length})
+                    🛒 الطلبات ({purchaseOrders.filter(o => o.status === 'pending').length})
                   </button>
                   <button 
                     className="buy-btn" 
-                    style={{ flex: 1, margin: 0, padding: '0.6rem', fontSize: '0.9rem', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: storeSubTab === 'inventory' ? 'var(--color-primary)' : '#ffffff', color: storeSubTab === 'inventory' ? '#ffffff' : 'var(--color-text-dark)', fontWeight: '700' }}
+                    style={{ flex: 1, margin: 0, padding: '0.6rem', fontSize: '0.85rem', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: storeSubTab === 'inventory' ? 'var(--color-primary)' : '#ffffff', color: storeSubTab === 'inventory' ? '#ffffff' : 'var(--color-text-dark)', fontWeight: '700', minWidth: '120px' }}
                     onClick={() => setStoreSubTab('inventory')}
                   >
-                    🎁 معروضات المتجر والجوائز
+                    🎁 المعروضات والجوائز
+                  </button>
+                  <button 
+                    className="buy-btn" 
+                    style={{ flex: 1, margin: 0, padding: '0.6rem', fontSize: '0.85rem', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: storeSubTab === 'preview' ? '#1a7f4b' : '#ffffff', color: storeSubTab === 'preview' ? '#ffffff' : 'var(--color-text-dark)', fontWeight: '700', minWidth: '120px' }}
+                    onClick={() => setStoreSubTab('preview')}
+                  >
+                    👁️ معاينة المتجر
                   </button>
                 </div>
+
+                {/* PREVIEW SUB-TAB: Show store as students see it */}
+                {storeSubTab === 'preview' && (
+                  <div>
+                    <div style={{ textAlign: 'right', marginBottom: '1rem', padding: '0.7rem 1rem', background: 'linear-gradient(135deg, #e8f5e9, #f1f8e9)', borderRadius: '10px', border: '1px solid #c8e6c9' }}>
+                      <p style={{ fontSize: '0.85rem', color: '#2e7d32', margin: 0, fontWeight: '600' }}>
+                        👁️ هذا هو شكل المتجر كما يراه الطلاب تماماً — للمراجعة قبل إضافة أو تعديل منتج
+                      </p>
+                    </div>
+                    <div className="store-grid">
+                      {storeProducts.length === 0 ? (
+                        <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-gray)', gridColumn: '1/-1' }}>لا توجد منتجات في المتجر حالياً.</p>
+                      ) : (
+                        storeProducts.map(product => (
+                          <div key={product.id} className="product-card">
+                            <img src={product.image} className="product-image" alt={product.name} />
+                            <div className="product-title">{product.name}</div>
+                            <div className="product-price">
+                              <span className="coin-icon"></span>
+                              <span>{product.price} نقطة</span>
+                            </div>
+                            <div className="product-stock">المخزن المتاح: {product.stock} قطع</div>
+                            <button
+                              className="buy-btn"
+                              disabled={product.stock <= 0}
+                              style={{ opacity: 0.7, cursor: 'default' }}
+                              onClick={() => triggerToast('هذه معاينة فقط - الشراء متاح للطلاب')}
+                            >
+                              {product.stock <= 0 ? 'نفدت الكمية' : '🛒 شراء (معاينة)'}
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {storeSubTab === 'orders' && (
                   <div>
