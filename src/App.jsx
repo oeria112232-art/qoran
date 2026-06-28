@@ -3,8 +3,6 @@ import bonyanDatabase from '../bonyan_database.json';
 import { db } from './firebase';
 import { ref, set, onValue, update } from 'firebase/database';
 
-// ضع مفتاح Google Gemini API الجديد هنا (الذي يبدأ بـ AIzaSy)
-const GEMINI_API_KEY = "AQ.Ab8RN6IDw5D9b3S6PTMyaelq41jSqzi7JTM1EjY6qkP-RBKDmQ";
 
 const INITIAL_ADMINS = [
   { id: 'a1', name: 'عمر الخطاب', email: 'admin@bonyan.com', password: '123' }
@@ -463,30 +461,15 @@ function App() {
 
   const callGeminiApi = async (userPrompt, systemInstruction, imageBase64 = null) => {
     try {
-      const fullPrompt = `${systemInstruction}\n\nالسياق/سؤال المستخدم:\n${userPrompt}`;
-      const parts = [{ text: fullPrompt }];
-
-      if (imageBase64) {
-        const match = imageBase64.match(/^data:(image\/[a-zA-Z0-9.-]+);base64,(.+)$/);
-        if (match) {
-          parts.push({
-            inline_data: {
-              mime_type: match[1],
-              data: match[2]
-            }
-          });
-        }
-      }
-
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+      const response = await fetch('/api/ai', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [{
-            parts: parts
-          }]
+          userPrompt,
+          systemInstruction,
+          imageBase64
         })
       });
 
@@ -498,11 +481,12 @@ function App() {
       if (data?.candidates?.[0]?.content?.parts?.[0]?.text) {
         return data.candidates[0].content.parts[0].text;
       } else {
+        console.error("Gemini Proxy Error:", data);
         throw new Error('Invalid format');
       }
     } catch (err) {
       console.error(err);
-      return 'عذراً، لم أتمكن من الاتصال بالذكاء الاصطناعي حالياً. يرجى التأكد من أن مفتاح الـ API المستخدم صالح ومفعل في إعدادات الآدمن.';
+      return 'عذراً، لم أتمكن من الاتصال بالذكاء الاصطناعي حالياً. يرجى التأكد من أن خادم الموقع متصل بنجاح.';
     }
   };
 

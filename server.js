@@ -17,6 +17,22 @@ if (!fs.existsSync(DB_PATH) && fs.existsSync(SEED_DB_PATH)) {
 
 const DIST_DIR = path.resolve(__dirname, 'dist');
 
+// Find the current active JS file name at startup to intercept outdated cache requests
+let currentJsFile = '';
+try {
+  const assetsDir = path.resolve(DIST_DIR, 'assets');
+  if (fs.existsSync(assetsDir)) {
+    const files = fs.readdirSync(assetsDir);
+    const jsFile = files.find(f => f.startsWith('index-') && f.endsWith('.js'));
+    if (jsFile) {
+      currentJsFile = jsFile;
+      console.log('Current active JS bundle file is:', currentJsFile);
+    }
+  }
+} catch (e) {
+  console.error('Failed to read active assets:', e);
+}
+
 const MIME_TYPES = {
   '.html': 'text/html',
   '.css': 'text/css',
@@ -38,6 +54,63 @@ const server = http.createServer((req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
     res.end();
+    return;
+  }
+
+  const requestUrl = req.url.split('?')[0];
+
+  // Intercept requests to old index-*.js files and force browser reload
+  if (requestUrl.startsWith('/assets/index-') && requestUrl.endsWith('.js')) {
+    const requestedFile = path.basename(requestUrl);
+    if (currentJsFile && requestedFile !== currentJsFile) {
+      console.log(`Intercepting outdated asset request: ${requestedFile}. Forcing client reload.`);
+      res.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-store' });
+      res.end('console.warn("Outdated bundle detected. Force reloading page..."); window.location.reload(true);');
+      return;
+    }
+  }
+
+  // Handle API Gemini AI Proxy
+  if (requestUrl.startsWith('/api/ai') && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const { userPrompt, systemInstruction, imageBase64 } = JSON.parse(body);
+        const GEMINI_API_KEY = "AQ.Ab8RN6IDw5D9b3S6PTMyaelq41jSqzi7JTM1EjY6qkP-RBKDmQ";
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        
+        const parts = [{ text: `${systemInstruction}\n\nالسياق/سؤال المستخدم:\n${userPrompt}` }];
+        if (imageBase64) {
+          const match = imageBase64.match(/^data:(image\/[a-zA-Z0-9.-]+);base64,(.+)$/);
+          if (match) {
+            parts.push({
+              inline_data: {
+                mime_type: match[1],
+                data: match[2]
+              }
+            });
+          }
+        }
+
+        const apiResponse = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [{ parts }]
+          })
+        });
+
+        const data = await apiResponse.json();
+        res.writeHead(apiResponse.status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(data));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
     return;
   }
 
