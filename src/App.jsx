@@ -150,11 +150,6 @@ function App() {
   const [adminTab, setAdminTab] = useState('store');
   const [storeSubTab, setStoreSubTab] = useState('orders');
 
-  // Lessons state
-  const [lessons, setLessons] = useState([]);
-  const [newLessonTitle, setNewLessonTitle] = useState('');
-  const [newLessonContent, setNewLessonContent] = useState('');
-  const [newLessonHomework, setNewLessonHomework] = useState('');
   
   // Roster / grading workflow
   const [selectedStudentId, setSelectedStudentId] = useState(null); // For teacher/admin grading view
@@ -548,8 +543,6 @@ function App() {
         const cloudGradingHistory = ensureArray(data.gradingHistory).filter(item => item.id !== 'g1' && item.id !== 'g2');
         const cloudPurchaseOrders = ensureArray(data.purchaseOrders);
 
-        const cloudLessons = ensureArray(data.lessons);
-
         // Mark this update as incoming from cloud to prevent echo write
         isIncomingCloudUpdate.current = true;
         
@@ -561,7 +554,6 @@ function App() {
         setGradingHistory(cloudGradingHistory);
         setPurchaseOrders(cloudPurchaseOrders);
         if (data.aiUsage) setAiUsage(data.aiUsage);
-        if (data.lessons) setLessons(cloudLessons);
 
         // Update the refs with the incoming cloud values to prevent triggering save effect
         prevStudentsRef.current = cloudStudents;
@@ -799,44 +791,6 @@ function App() {
     }
   };
 
-  // Add a new lesson (teacher saves a lesson for their classroom)
-  const handleAddLesson = (e) => {
-    e.preventDefault();
-    if (!newLessonTitle.trim() || !newLessonContent.trim()) {
-      triggerToast('يرجى إدخال عنوان ومحتوى الدرس على الأقل!');
-      return;
-    }
-    const teacherClassroomId = currentUser?.classroomId;
-    if (!teacherClassroomId) {
-      triggerToast('لا يوجد حلقة مسندة لك. تواصل مع المشرف.');
-      return;
-    }
-    const newLesson = {
-      id: generateUniqueId('l'),
-      classroomId: teacherClassroomId,
-      teacherName: currentUser.name,
-      title: newLessonTitle.trim(),
-      content: newLessonContent.trim(),
-      homework: newLessonHomework.trim(),
-      date: new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })
-    };
-    const nextLessons = [newLesson, ...lessons];
-    setLessons(nextLessons);
-    saveUpdatesToFirebase({ lessons: nextLessons });
-    setNewLessonTitle('');
-    setNewLessonContent('');
-    setNewLessonHomework('');
-    triggerToast('✅ تم حفظ الدرس بنجاح وهو مرئي للطلاب الآن!');
-  };
-
-  // Delete a lesson
-  const handleDeleteLesson = (lessonId) => {
-    const nextLessons = lessons.filter(l => l.id !== lessonId);
-    setLessons(nextLessons);
-    saveUpdatesToFirebase({ lessons: nextLessons });
-    triggerToast('تم حذف الدرس.');
-  };
-
   // Get Student Ranking
   const getStudentRanking = (studentId) => {
     const student = students.find(s => s.id === studentId);
@@ -932,8 +886,15 @@ function App() {
     );
 
     if (alreadyGraded) {
-      triggerToast('عذراً! تم رصد درجات لهذا الطالب اليوم بالفعل. لا يمكن إضافة أكثر من درجة خلال اليوم الواحد.');
-      return;
+      // Admin/superadmin can override the daily restriction
+      if (currentUser.role === 'admin' || currentUser.role === 'superadmin') {
+        // Allow admin to proceed — just warn them
+        triggerToast('⚠️ تنبيه: هذا الطالب تم تقييمه اليوم بالفعل، لكن الإدارة تملك صلاحية التقييم مجدداً.');
+        // Don't return — let them proceed
+      } else {
+        triggerToast('عذراً! تم رصد درجات لهذا الطالب اليوم بالفعل. لا يمكن إضافة أكثر من درجة خلال اليوم الواحد.');
+        return;
+      }
     }
 
     // Calculate Memorization Points = درجة الحفظ مباشرة
@@ -1921,46 +1882,82 @@ function App() {
             )}
 
             {studentTab === 'lessons' && (() => {
-              const studentClassroomId = currentStudentData?.classroomId;
-              const myLessons = lessons.filter(l => l.classroomId === studentClassroomId);
+              const mySessions = gradingHistory
+                .filter(h => h.studentId === currentUser?.id)
+                .sort((a, b) => (b.isoDate || '').localeCompare(a.isoDate || ''));
+
               return (
                 <div style={{ padding: '1rem 1rem 5rem 1rem' }}>
                   <div style={{ textAlign: 'right', marginBottom: '1rem' }}>
-                    <h2 style={{ color: 'var(--color-primary)', fontWeight: '700', fontSize: '1.2rem' }}>📚 دروسي السابقة</h2>
+                    <h2 style={{ color: 'var(--color-primary)', fontWeight: '700', fontSize: '1.2rem' }}>📚 سجل جلساتي</h2>
                     <p style={{ fontSize: '0.83rem', color: 'var(--color-text-gray)', marginTop: '0.3rem' }}>
-                      جميع الدروس التي سجّلها معلمك لحلقتك
+                      جميع جلسات التحفيظ التي مررت بها مع معلمك
                     </p>
                   </div>
-                  {myLessons.length === 0 ? (
+                  {mySessions.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--color-text-gray)', background: '#f9f9f9', borderRadius: '16px' }}>
                       <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>📭</div>
-                      <p>لا توجد دروس محفوظة من معلمك بعد.</p>
-                      <p style={{ fontSize: '0.8rem', marginTop: '0.3rem' }}>ستظهر هنا فور قيام معلمك بإضافتها.</p>
+                      <p>لا توجد جلسات تقييم مسجلة بعد.</p>
+                      <p style={{ fontSize: '0.8rem', marginTop: '0.3rem' }}>ستظهر هنا تلقائياً بعد كل جلسة تحفيظ.</p>
                     </div>
                   ) : (
-                    myLessons.map(lesson => (
-                      <div key={lesson.id} className="lesson-card">
-                        <div className="lesson-card-header">
-                          <span className="lesson-card-title">📗 {lesson.title}</span>
-                          <span className="lesson-card-date">📅 {lesson.date}</span>
+                    mySessions.map(session => {
+                      const total = session.grades
+                        ? (Number(session.grades.memorization) || 0) +
+                          (Number(session.grades.behavior) || 0) +
+                          (Number(session.grades.attendance) || 0) +
+                          (Number(session.grades.activity) || 0)
+                        : 0;
+                      return (
+                        <div key={session.id} className="lesson-card">
+                          <div className="lesson-card-header">
+                            <span className="lesson-card-title">📅 {session.date || session.isoDate}</span>
+                            <span style={{
+                              background: total >= 15 ? '#e8f5e9' : total >= 10 ? '#fff8e1' : '#fce4ec',
+                              color: total >= 15 ? '#2e7d32' : total >= 10 ? '#f57f17' : '#c62828',
+                              borderRadius: '8px',
+                              padding: '0.2rem 0.6rem',
+                              fontWeight: '700',
+                              fontSize: '0.85rem'
+                            }}>
+                              {total} / 20
+                            </span>
+                          </div>
+                          {session.grades && (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', marginBottom: '0.5rem', direction: 'rtl' }}>
+                              <div style={{ background: '#f5f5f5', borderRadius: '8px', padding: '0.4rem 0.6rem', fontSize: '0.82rem', textAlign: 'center' }}>
+                                <div style={{ fontWeight: '700', color: 'var(--color-primary)' }}>{session.grades.memorization}/10</div>
+                                <div style={{ color: 'var(--color-text-gray)', fontSize: '0.75rem' }}>📖 التسميع</div>
+                              </div>
+                              <div style={{ background: '#f5f5f5', borderRadius: '8px', padding: '0.4rem 0.6rem', fontSize: '0.82rem', textAlign: 'center' }}>
+                                <div style={{ fontWeight: '700', color: 'var(--color-primary)' }}>{session.grades.behavior}/5</div>
+                                <div style={{ color: 'var(--color-text-gray)', fontSize: '0.75rem' }}>📋 السلوك</div>
+                              </div>
+                              <div style={{ background: '#f5f5f5', borderRadius: '8px', padding: '0.4rem 0.6rem', fontSize: '0.82rem', textAlign: 'center' }}>
+                                <div style={{ fontWeight: '700', color: 'var(--color-primary)' }}>{session.grades.attendance}/5</div>
+                                <div style={{ color: 'var(--color-text-gray)', fontSize: '0.75rem' }}>✅ الحضور</div>
+                              </div>
+                              {session.grades.versesCount > 0 && (
+                                <div style={{ background: '#f5f5f5', borderRadius: '8px', padding: '0.4rem 0.6rem', fontSize: '0.82rem', textAlign: 'center' }}>
+                                  <div style={{ fontWeight: '700', color: 'var(--color-primary)' }}>{session.grades.versesCount}</div>
+                                  <div style={{ color: 'var(--color-text-gray)', fontSize: '0.75rem' }}>🔢 آيات</div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {session.homework && (
+                            <div className="lesson-card-homework">
+                              <strong>📝 الواجب: </strong>{session.homework}
+                            </div>
+                          )}
                         </div>
-                        <div className="lesson-card-content">{lesson.content}</div>
-                        {lesson.homework && (
-                          <div className="lesson-card-homework">
-                            <strong>📝 الواجب المنزلي: </strong>{lesson.homework}
-                          </div>
-                        )}
-                        {lesson.teacherName && (
-                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-gray)', marginTop: '0.4rem', textAlign: 'right' }}>
-                            👨‍🏫 أ. {lesson.teacherName}
-                          </div>
-                        )}
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               );
             })()}
+
 
             {studentTab === 'ai' && (
               <div className="ai-chat-container">
@@ -2089,85 +2086,105 @@ function App() {
             </div>
 
             {/* Teacher Lessons Tab */}
-            {teacherTabState === 'lessons' && (
-              <div style={{ padding: '1rem 1.2rem' }}>
-                <h3 style={{ color: 'var(--color-primary)', fontWeight: '700', marginBottom: '1rem', textAlign: 'right' }}>
-                  📖 سجل دروس الحلقة
-                </h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--color-text-gray)', textAlign: 'right', marginBottom: '1rem' }}>
-                  الدروس التي تحفظها هنا ستظهر لجميع طلاب حلقتك في قسم "دروسي" الخاص بهم.
-                </p>
+            {teacherTabState === 'lessons' && (() => {
+              // Get all students in this teacher's classroom
+              const myStudentIds = teacherStudentsList.map(s => s.id);
+              // Get all grading sessions for these students, sorted newest first
+              const mySessions = gradingHistory
+                .filter(h => myStudentIds.includes(h.studentId))
+                .sort((a, b) => (b.isoDate || '').localeCompare(a.isoDate || ''));
 
-                {/* Add New Lesson Form */}
-                <form onSubmit={handleAddLesson} className="lesson-add-form">
-                  <h4 style={{ color: '#2e7d32', fontWeight: '700', marginBottom: '0.8rem', textAlign: 'right' }}>
-                    ➕ إضافة درس جديد
-                  </h4>
-                  <div className="admin-form-group" style={{ marginBottom: '0.6rem' }}>
-                    <input
-                      type="text"
-                      className="admin-input"
-                      placeholder="عنوان الدرس (مثال: سورة البقرة - الآيات 1-10)"
-                      value={newLessonTitle}
-                      onChange={e => setNewLessonTitle(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="admin-form-group" style={{ marginBottom: '0.6rem' }}>
-                    <textarea
-                      placeholder="محتوى الدرس وملاحظاته..."
-                      value={newLessonContent}
-                      onChange={e => setNewLessonContent(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="admin-form-group" style={{ marginBottom: '0.8rem' }}>
-                    <textarea
-                      placeholder="الواجب المنزلي (اختياري) - ما يجب على الطلاب مراجعته..."
-                      value={newLessonHomework}
-                      onChange={e => setNewLessonHomework(e.target.value)}
-                      style={{ minHeight: '60px' }}
-                    />
-                  </div>
-                  <button type="submit" className="modern-btn-primary" style={{ width: '100%' }}>
-                    💾 حفظ الدرس ونشره للطلاب
-                  </button>
-                </form>
+              // Group sessions by date
+              const grouped = mySessions.reduce((acc, session) => {
+                const key = session.date || session.isoDate || 'غير محدد';
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(session);
+                return acc;
+              }, {});
 
-                {/* Lessons List */}
-                <div>
-                  {lessons.filter(l => l.classroomId === currentUser?.classroomId).length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-gray)', background: '#f9f9f9', borderRadius: '12px' }}>
-                      📭 لا توجد دروس محفوظة بعد. ابدأ بإضافة أول درس لحلقتك!
+              return (
+                <div style={{ padding: '1rem 1.2rem' }}>
+                  <div style={{ textAlign: 'right', marginBottom: '1rem' }}>
+                    <h3 style={{ color: 'var(--color-primary)', fontWeight: '700', marginBottom: '0.3rem' }}>
+                      📖 سجل جلسات التحفيظ
+                    </h3>
+                    <p style={{ fontSize: '0.83rem', color: 'var(--color-text-gray)' }}>
+                      يعرض هذا السجل جميع جلسات التقييم الفعلية التي أجريتها مع طلابك مرتبةً من الأحدث.
+                    </p>
+                  </div>
+
+                  {mySessions.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--color-text-gray)', background: '#f9f9f9', borderRadius: '16px' }}>
+                      <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>📭</div>
+                      <p>لا توجد جلسات تقييم مسجلة بعد.</p>
+                      <p style={{ fontSize: '0.8rem', marginTop: '0.3rem' }}>ستظهر هنا تلقائياً عند تقييم طلابك.</p>
                     </div>
                   ) : (
-                    lessons
-                      .filter(l => l.classroomId === currentUser?.classroomId)
-                      .map(lesson => (
-                        <div key={lesson.id} className="lesson-card">
-                          <div className="lesson-card-header">
-                            <span className="lesson-card-title">📗 {lesson.title}</span>
-                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                              <span className="lesson-card-date">📅 {lesson.date}</span>
-                              <button
-                                onClick={() => handleDeleteLesson(lesson.id)}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: '#e53935' }}
-                                title="حذف الدرس"
-                              >🗑️</button>
-                            </div>
-                          </div>
-                          <div className="lesson-card-content">{lesson.content}</div>
-                          {lesson.homework && (
-                            <div className="lesson-card-homework">
-                              <strong>📝 الواجب المنزلي: </strong>{lesson.homework}
-                            </div>
-                          )}
+                    Object.entries(grouped).map(([date, sessions]) => (
+                      <div key={date} style={{ marginBottom: '1.5rem' }}>
+                        <div style={{
+                          background: 'var(--color-primary)',
+                          color: '#fff',
+                          padding: '0.4rem 1rem',
+                          borderRadius: '8px',
+                          fontWeight: '700',
+                          fontSize: '0.85rem',
+                          marginBottom: '0.6rem',
+                          textAlign: 'right'
+                        }}>
+                          📅 {date}
                         </div>
-                      ))
+                        {sessions.map(session => {
+                          const student = students.find(s => s.id === session.studentId);
+                          const total = session.grades
+                            ? (Number(session.grades.memorization) || 0) +
+                              (Number(session.grades.behavior) || 0) +
+                              (Number(session.grades.attendance) || 0) +
+                              (Number(session.grades.activity) || 0)
+                            : 0;
+                          return (
+                            <div key={session.id} className="lesson-card" style={{ marginBottom: '0.6rem' }}>
+                              <div className="lesson-card-header">
+                                <span className="lesson-card-title">
+                                  👤 {student ? student.name : 'طالب غير معروف'}
+                                </span>
+                                <span style={{
+                                  background: total >= 15 ? '#e8f5e9' : total >= 10 ? '#fff8e1' : '#fce4ec',
+                                  color: total >= 15 ? '#2e7d32' : total >= 10 ? '#f57f17' : '#c62828',
+                                  borderRadius: '8px',
+                                  padding: '0.2rem 0.6rem',
+                                  fontWeight: '700',
+                                  fontSize: '0.85rem'
+                                }}>
+                                  {total} / 20
+                                </span>
+                              </div>
+                              {session.grades && (
+                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.78rem', color: 'var(--color-text-gray)', marginBottom: '0.4rem', direction: 'rtl' }}>
+                                  <span>📖 التسميع: {session.grades.memorization}/10</span>
+                                  <span>•</span>
+                                  <span>📋 السلوك: {session.grades.behavior}/5</span>
+                                  <span>•</span>
+                                  <span>✅ الحضور: {session.grades.attendance}/5</span>
+                                  {session.grades.versesCount > 0 && (
+                                    <><span>•</span><span>🔢 آيات: {session.grades.versesCount}</span></>
+                                  )}
+                                </div>
+                              )}
+                              {session.homework && (
+                                <div className="lesson-card-homework">
+                                  <strong>📝 الواجب: </strong>{session.homework}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))
                   )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {teacherTabState === 'classroom' && selectedStudentId === null && (
               /* Classroom student list view */
@@ -2746,7 +2763,7 @@ function App() {
                                   const extraPoints = prompt(`أدخل عدد النقاط لإضافتها أو خصمها من رصيد ${student.name} (استخدم إشارة سالب للخصم):`, "50");
                                   if (extraPoints && !isNaN(Number(extraPoints))) {
                                     const pts = Number(extraPoints);
-                                    setStudents(prev => prev.map(st => {
+                                    const nextStudents = students.map(st => {
                                       if (st.id === student.id) {
                                         return { 
                                           ...st, 
@@ -2755,8 +2772,10 @@ function App() {
                                         };
                                       }
                                       return st;
-                                    }));
-                                    triggerToast('تم تعديل النقاط بنجاح!');
+                                    });
+                                    setStudents(nextStudents);
+                                    saveUpdatesToFirebase({ students: nextStudents });
+                                    triggerToast('✅ تم تعديل النقاط وحفظها بنجاح!');
                                   }
                                 }}
                               >
