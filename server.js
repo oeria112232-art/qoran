@@ -1,7 +1,9 @@
 import http from 'http';
+import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -115,10 +117,11 @@ const server = http.createServer((req, res) => {
   if (requestUrl.startsWith('/api/ai') && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => { body += chunk; });
-    req.on('end', async () => {
+    req.on('end', () => {
       try {
         const { userPrompt, systemInstruction, imageBase64 } = JSON.parse(body);
-        // Try to read key from file first, then fall back to env, then empty
+
+        // Read API key from file or env
         let keyToUse = process.env.GEMINI_API_KEY || '';
         const keyFilePath = path.resolve(__dirname, 'api_key.txt');
         if (fs.existsSync(keyFilePath)) {
@@ -131,52 +134,68 @@ const server = http.createServer((req, res) => {
             console.error('Failed to read api_key.txt:', e);
           }
         }
-        
+
         if (!keyToUse) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'No API key configured. Please add your Gemini API key from the admin settings.' }));
           return;
         }
-        
-        // Support both old AI Studio format (AQ.*) and new API key format (AIza*)
-        // Use v1beta for both formats
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${keyToUse}`;
-        console.log('Using key starting with:', keyToUse.substring(0, 8) + '...');
+
+        console.log('Using Gemini key starting with:', keyToUse.substring(0, 8) + '...');
 
         const parts = [{ text: `${systemInstruction}\n\nالسياق/سؤال المستخدم:\n${userPrompt}` }];
         if (imageBase64) {
           const match = imageBase64.match(/^data:(image\/[a-zA-Z0-9.-]+);base64,(.+)$/);
           if (match) {
             parts.push({
-              inline_data: {
-                mime_type: match[1],
-                data: match[2]
-              }
+              inline_data: { mime_type: match[1], data: match[2] }
             });
           }
         }
 
-        const apiResponse = await fetch(url, {
+        const postData = JSON.stringify({ contents: [{ parts }] });
+        const apiPath = `/v1beta/models/gemini-1.5-flash:generateContent?key=${keyToUse}`;
+
+        const options = {
+          hostname: 'generativelanguage.googleapis.com',
+          path: apiPath,
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [{ parts }]
-          })
+            'Content-Length': Buffer.byteLength(postData)
+          }
+        };
+
+        const apiReq = https.request(options, (apiRes) => {
+          let responseData = '';
+          apiRes.on('data', chunk => { responseData += chunk; });
+          apiRes.on('end', () => {
+            try {
+              const parsed = JSON.parse(responseData);
+              if (apiRes.statusCode !== 200) {
+                console.error('Google Gemini API Error:', apiRes.statusCode, responseData.substring(0, 300));
+              }
+              res.writeHead(apiRes.statusCode, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify(parsed));
+            } catch (parseErr) {
+              console.error('Failed to parse Gemini response:', parseErr.message);
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Failed to parse Gemini response' }));
+            }
+          });
         });
 
-        const data = await apiResponse.json();
-        
-        // Log Google API errors for debugging
-        if (!apiResponse.ok) {
-          console.error('Google Gemini API Error:', apiResponse.status, JSON.stringify(data));
-        }
-        
-        res.writeHead(apiResponse.status, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(data));
+        apiReq.on('error', (e) => {
+          console.error('Gemini HTTPS request error:', e.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Network error reaching Gemini: ' + e.message }));
+        });
+
+        apiReq.write(postData);
+        apiReq.end();
+
       } catch (e) {
-        console.error('AI Proxy internal error:', e.message);
+        console.error('AI Proxy parse error:', e.message);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: e.message }));
       }
