@@ -808,9 +808,9 @@ function App() {
       return;
     }
 
-    // Calculate Memorization Points = درجة الحفظ * (عدد الآيات * 0.1)
-    const rawMemorizationPoints = Number(gradeMemorization) * (Number(gradeVersesCount) * 0.1);
-    const memorizationPoints = Math.round(rawMemorizationPoints * 10) / 10;
+    // Calculate Memorization Points = درجة الحفظ مباشرة
+    const rawMemorizationPoints = Number(gradeMemorization) || 0;
+    const memorizationPoints = rawMemorizationPoints;
 
     const total = memorizationPoints + Number(gradeBehavior) + Number(gradeAttendance) + (currentUser.role === 'teacher' ? 0 : Number(gradeActivity));
 
@@ -2159,18 +2159,18 @@ function App() {
                         </div>
                       </div>
 
-                      {/* Memorization points grade out of 10 */}
+                      {/* Memorization points grade out of 20 */}
                       <div className="grade-input-card">
-                        <div className="grade-label"><span>📖</span><span>درجة الحفظ والتجويد (من 10):</span></div>
+                        <div className="grade-label"><span>📖</span><span>درجة الحفظ والتجويد (من 20):</span></div>
                         <div className="grade-input-wrapper">
-                          <input type="number" min="0" max="10" className="grade-number-input" value={gradeMemorization} onChange={(e) => setGradeMemorization(Math.min(10, Math.max(0, Number(e.target.value))))} />
-                          <span>/ 10</span>
+                          <input type="number" min="0" max="20" className="grade-number-input" value={gradeMemorization} onChange={(e) => setGradeMemorization(Math.min(20, Math.max(0, Number(e.target.value))))} />
+                          <span>/ 20</span>
                         </div>
                       </div>
 
                       {/* Real-time Math helper banner */}
                       <div className="text-center mb-1" style={{ fontSize: '0.85rem', color: 'var(--color-primary-light)', padding: '0.4rem', backgroundColor: '#eef6f4', borderRadius: '6px', fontWeight: '700' }}>
-                        حسبة درجة الحفظ: {gradeMemorization} (درجة) × ({gradeVersesCount} آية × 0.1) = {(gradeMemorization * (gradeVersesCount * 0.1)).toFixed(1)} نقطة
+                        مجموع النقاط المضافة اليوم: {gradeMemorization} (حفظ) + {gradeBehavior} (سلوك) + {gradeAttendance} (حضور) = {Number(gradeMemorization) + Number(gradeBehavior) + Number(gradeAttendance)} نقطة
                       </div>
 
                       <div className="grade-input-card">
@@ -2562,13 +2562,13 @@ function App() {
                           <input type="number" className="grade-number-input" value={gradeVersesCount} onChange={e => setGradeVersesCount(Math.max(1, Number(e.target.value)))} />
                         </div>
                         <div className="grade-input-card">
-                          <span>درجة الحفظ والتجويد (من 10):</span>
-                          <input type="number" className="grade-number-input" value={gradeMemorization} onChange={e => setGradeMemorization(Math.min(10, Math.max(0, Number(e.target.value))))} />
+                          <span>درجة الحفظ والتجويد (من 20):</span>
+                          <input type="number" className="grade-number-input" value={gradeMemorization} onChange={e => setGradeMemorization(Math.min(20, Math.max(0, Number(e.target.value))))} />
                         </div>
 
                         {/* Math helper */}
                         <div className="text-center mb-1" style={{ fontSize: '0.85rem', color: 'var(--color-primary-light)', padding: '0.4rem', backgroundColor: '#eef6f4', borderRadius: '6px', fontWeight: '700' }}>
-                          حسبة الحفظ: {gradeMemorization} (درجة) × ({gradeVersesCount} آية × 0.1) = {(gradeMemorization * (gradeVersesCount * 0.1)).toFixed(1)} نقطة
+                          مجموع النقاط المضافة اليوم: {gradeMemorization} (حفظ) + {gradeBehavior} (سلوك) + {gradeAttendance} (حضور) {currentUser.role !== 'teacher' ? `+ ${gradeActivity} (نشاط) = ${Number(gradeMemorization) + Number(gradeBehavior) + Number(gradeAttendance) + Number(gradeActivity)}` : `= ${Number(gradeMemorization) + Number(gradeBehavior) + Number(gradeAttendance)}`} نقطة
                         </div>
 
                         <div className="grade-input-card">
@@ -4272,15 +4272,11 @@ function App() {
             
             <div className="modal-item">
               <span>درجة الحفظ والتجويد:</span>
-              <strong>{currentGradingData.memorization} / 10</strong>
+              <strong>{currentGradingData.memorization} / 20</strong>
             </div>
             <div className="modal-item">
               <span>عدد الآيات المحفوظة:</span>
-              <strong>{currentGradingData.versesCount} آيات</strong>
-            </div>
-            <div className="modal-item" style={{ backgroundColor: '#f0f7f4', padding: '0.3rem', borderRadius: '4px' }}>
-              <span>نقاط الحفظ المعادلة:</span>
-              <strong>{currentGradingData.memorizationCalculated} نقطة</strong>
+              <strong>{currentGradingData.versesCount} آية</strong>
             </div>
             <div className="modal-item">
               <span>درجة السلوك والأدب:</span>
