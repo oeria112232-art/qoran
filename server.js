@@ -33,6 +33,7 @@ const getActiveBundleFiles = () => {
   }
 };
 
+
 // Global in-memory cache for the API key to bypass read-only file systems
 let cachedApiKey = '';
 
@@ -110,36 +111,9 @@ const server = http.createServer((req, res) => {
 
   const requestUrl = req.url.split('?')[0];
 
-  // Dynamically detect current bundle and intercept outdated JS/CSS requests
-  if (requestUrl.startsWith('/assets/index-') && (requestUrl.endsWith('.js') || requestUrl.endsWith('.css'))) {
-    const requestedFile = path.basename(requestUrl);
-    const { js: currentJs, css: currentCss } = getActiveBundleFiles();
-    const isOldJs = requestUrl.endsWith('.js') && currentJs && requestedFile !== currentJs;
-    const isOldCss = requestUrl.endsWith('.css') && currentCss && requestedFile !== currentCss;
-    if (isOldJs || isOldCss) {
-      console.log(`Intercepting outdated asset: ${requestedFile}. Forcing client reload.`);
-      res.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-store' });
-      // Protect against infinite loops by using sessionStorage counter
-      const reloadCode = `
-        (function() {
-          var count = parseInt(sessionStorage.getItem('bonyan_intercept_reload') || '0', 10);
-          if (count < 3) {
-            sessionStorage.setItem('bonyan_intercept_reload', (count + 1) + '');
-            console.warn('[Bonyan] Outdated bundle, reloading page...');
-            setTimeout(function(){ 
-              window.location.replace(window.location.href.split('?')[0] + '?v=' + Date.now()); 
-            }, 150);
-          } else {
-            console.error('[Bonyan] Prevented infinite reload loop due to webview cache.');
-          }
-        })();
-      `;
-      res.end(reloadCode);
-      return;
-    }
-  }
+  // === Removed: outdated asset interception that caused infinite reload loops on iOS Safari ===
 
-  // Version endpoint: returns current bundle hash so clients can detect stale code
+  // Version endpoint: returns current bundle hash (kept for backward compatibility)
   if (requestUrl === '/api/version' && req.method === 'GET') {
     const { js } = getActiveBundleFiles();
     const versionHash = js.replace('index-', '').replace('.js', '') || 'unknown';
@@ -358,17 +332,14 @@ const server = http.createServer((req, res) => {
         return;
       }
       
-      const responseHeaders = { 'Content-Type': contentType };
-      
-      // Prevent browser caching for HTML files so users always get the latest build references
-      if (ext === '.html') {
-        responseHeaders['Cache-Control'] = 'no-store, no-cache, must-revalidate, proxy-revalidate';
-        responseHeaders['Pragma'] = 'no-cache';
-        responseHeaders['Expires'] = '0';
-      } else {
-        // Cache static assets (JS, CSS, images) for up to 1 year since Vite uses unique hashes in filenames
-        responseHeaders['Cache-Control'] = 'public, max-age=31536000, immutable';
-      }
+      // No caching for ANY file - always serve fresh content.
+      // This prevents iOS Safari infinite reload loops caused by stale cached JS bundles.
+      const responseHeaders = {
+        'Content-Type': contentType,
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      };
 
       res.writeHead(200, responseHeaders);
       res.end(content);

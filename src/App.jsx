@@ -513,51 +513,10 @@ function App() {
     }
   };
 
+  // Version check system REMOVED - was causing iOS Safari infinite reload loops.
+  // Server now sends no-cache headers for all files, ensuring fresh content on every load.
 
-  // Auto version-check: polls server every 5 minutes and silently reloads if a new bundle is deployed
-  // Clear reload counters when the app mounts successfully
-  useEffect(() => {
-    sessionStorage.removeItem('bonyan_intercept_reload');
-    sessionStorage.removeItem('bonyan_reload_count');
-  }, []);
 
-  useEffect(() => {
-    let currentVersion = '';
-
-    const checkVersion = async () => {
-      try {
-        const res = await fetch('/api/version?t=' + Date.now());
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data.version || data.version === 'unknown') return;
-        if (!currentVersion) {
-          currentVersion = data.version;
-          return;
-        }
-        if (data.version !== currentVersion) {
-          console.log('[Bonyan] New version detected, checking reload count...');
-          const reloadCount = parseInt(sessionStorage.getItem('bonyan_reload_count') || '0', 10);
-          if (reloadCount >= 3) {
-            console.warn('[Bonyan] Prevented infinite reload loop.');
-            triggerToast('⚠️ تم تحديث المنصة. يرجى إغلاق الصفحة وإعادة فتحها لتفعيل التحديث.');
-            return;
-          }
-          sessionStorage.setItem('bonyan_reload_count', (reloadCount + 1).toString());
-          window.location.replace(window.location.href.split('?')[0] + '?v=' + Date.now());
-        } else {
-          // Reset counter if versions match
-          sessionStorage.setItem('bonyan_reload_count', '0');
-        }
-      } catch {
-        // Silently ignore network errors
-      }
-    };
-
-    // Check immediately, then every 5 minutes
-    checkVersion();
-    const interval = setInterval(checkVersion, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     const dbRef = ref(db, '/');
