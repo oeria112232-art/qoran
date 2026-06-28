@@ -70,6 +70,37 @@ const server = http.createServer((req, res) => {
     }
   }
 
+  // Handle API Set Key (Admin saves Gemini API Key from UI)
+  if (requestUrl === '/api/set-key' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const { key, adminPassword } = JSON.parse(body);
+        // Simple server-side password check to prevent unauthorized key changes
+        if (adminPassword !== 'bonyan2025admin') {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Unauthorized' }));
+          return;
+        }
+        if (!key || key.trim().length < 10) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid key' }));
+          return;
+        }
+        const keyFilePath = path.resolve(__dirname, 'api_key.txt');
+        fs.writeFileSync(keyFilePath, key.trim(), 'utf8');
+        console.log('Gemini API Key updated via admin UI.');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
   // Handle API Gemini AI Proxy
   if (requestUrl.startsWith('/api/ai') && req.method === 'POST') {
     let body = '';

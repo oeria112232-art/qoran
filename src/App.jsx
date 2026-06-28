@@ -168,6 +168,7 @@ function App() {
   const [profilePassword, setProfilePassword] = useState('');
   const [profileAvatar, setProfileAvatar] = useState('');
   const [profileWhatsapp, setProfileWhatsapp] = useState('');
+  const [geminiApiKeyInput, setGeminiApiKeyInput] = useState('');
 
   // Toast State
   const [toastMessage, setToastMessage] = useState('');
@@ -726,6 +727,30 @@ function App() {
     }
 
     triggerToast('تم حفظ تعديلات الملف الشخصي بنجاح!');
+  };
+
+  const handleSaveGeminiKey = async (e) => {
+    e.preventDefault();
+    if (!geminiApiKeyInput.trim()) {
+      triggerToast('يرجى إدخال المفتاح أولاً!');
+      return;
+    }
+    try {
+      const res = await fetch('/api/set-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: geminiApiKeyInput.trim(), adminPassword: 'bonyan2025admin' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        triggerToast('✅ تم حفظ مفتاح الذكاء الاصطناعي بنجاح! يعمل الذكاء الاصطناعي الآن.');
+        setGeminiApiKeyInput('');
+      } else {
+        triggerToast('❌ خطأ في حفظ المفتاح: ' + (data.error || 'غير معروف'));
+      }
+    } catch {
+      triggerToast('❌ فشل الاتصال بالسيرفر. تأكد من أن الموقع يعمل.');
+    }
   };
 
   // Get Student Ranking
@@ -4230,6 +4255,31 @@ function App() {
                       🚪 تسجيل الخروج من الحساب
                     </button>
                   </form>
+
+                  {currentUser.role === 'superadmin' && (
+                    <form onSubmit={handleSaveGeminiKey} style={{ marginTop: '1.5rem', borderTop: '2px solid var(--color-border)', paddingTop: '1rem', textAlign: 'right' }}>
+                      <h4 style={{ color: 'var(--color-primary)', fontWeight: '700', marginBottom: '0.7rem' }}>
+                        🤖 إعداد مفتاح الذكاء الاصطناعي
+                      </h4>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--color-text-gray)', marginBottom: '0.8rem', lineHeight: '1.5' }}>
+                        الصق المفتاح الجديد هنا لتفعيل المساعد الذكي للطلاب فوراً دون الحاجة لمدير الملفات.
+                      </p>
+                      <div className="admin-form-group">
+                        <input
+                          type="text"
+                          className="admin-input"
+                          placeholder="الصق مفتاح Gemini API هنا..."
+                          value={geminiApiKeyInput}
+                          onChange={e => setGeminiApiKeyInput(e.target.value)}
+                          style={{ fontFamily: 'monospace', fontSize: '0.8rem', direction: 'ltr' }}
+                        />
+                      </div>
+                      <button type="submit" className="modern-btn-primary" style={{ backgroundColor: '#1a7f4b', marginTop: '0.5rem' }}>
+                        🔑 حفظ مفتاح الذكاء الاصطناعي
+                      </button>
+                    </form>
+                  )}
+
                 </div>
               </div>
             )}
