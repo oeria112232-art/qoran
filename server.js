@@ -17,21 +17,19 @@ if (!fs.existsSync(DB_PATH) && fs.existsSync(SEED_DB_PATH)) {
 
 const DIST_DIR = path.resolve(__dirname, 'dist');
 
-// Find the current active JS file name at startup to intercept outdated cache requests
-let currentJsFile = '';
-try {
-  const assetsDir = path.resolve(DIST_DIR, 'assets');
-  if (fs.existsSync(assetsDir)) {
+// Dynamically read active bundle filenames from dist/assets on every check
+const getActiveBundleFiles = () => {
+  try {
+    const assetsDir = path.resolve(DIST_DIR, 'assets');
+    if (!fs.existsSync(assetsDir)) return { js: '', css: '' };
     const files = fs.readdirSync(assetsDir);
-    const jsFile = files.find(f => f.startsWith('index-') && f.endsWith('.js'));
-    if (jsFile) {
-      currentJsFile = jsFile;
-      console.log('Current active JS bundle file is:', currentJsFile);
-    }
+    const jsFile = files.find(f => f.startsWith('index-') && f.endsWith('.js')) || '';
+    const cssFile = files.find(f => f.startsWith('index-') && f.endsWith('.css')) || '';
+    return { js: jsFile, css: cssFile };
+  } catch {
+    return { js: '', css: '' };
   }
-} catch (e) {
-  console.error('Failed to read active assets:', e);
-}
+};
 
 const MIME_TYPES = {
   '.html': 'text/html',
@@ -59,15 +57,27 @@ const server = http.createServer((req, res) => {
 
   const requestUrl = req.url.split('?')[0];
 
-  // Intercept requests to old index-*.js files and force browser reload
-  if (requestUrl.startsWith('/assets/index-') && requestUrl.endsWith('.js')) {
+  // Dynamically detect current bundle and intercept outdated JS/CSS requests
+  if (requestUrl.startsWith('/assets/index-') && (requestUrl.endsWith('.js') || requestUrl.endsWith('.css'))) {
     const requestedFile = path.basename(requestUrl);
-    if (currentJsFile && requestedFile !== currentJsFile) {
-      console.log(`Intercepting outdated asset request: ${requestedFile}. Forcing client reload.`);
+    const { js: currentJs, css: currentCss } = getActiveBundleFiles();
+    const isOldJs = requestUrl.endsWith('.js') && currentJs && requestedFile !== currentJs;
+    const isOldCss = requestUrl.endsWith('.css') && currentCss && requestedFile !== currentCss;
+    if (isOldJs || isOldCss) {
+      console.log(`Intercepting outdated asset: ${requestedFile}. Forcing client reload.`);
       res.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-store' });
-      res.end('console.warn("Outdated bundle detected. Force reloading page..."); window.location.reload(true);');
+      res.end('console.warn("[Bonyan] Outdated bundle detected, reloading page..."); setTimeout(function(){ window.location.replace(window.location.href.split("?")[0] + "?v=" + Date.now()); }, 100);');
       return;
     }
+  }
+
+  // Version endpoint: returns current bundle hash so clients can detect stale code
+  if (requestUrl === '/api/version' && req.method === 'GET') {
+    const { js } = getActiveBundleFiles();
+    const versionHash = js.replace('index-', '').replace('.js', '') || 'unknown';
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({ version: versionHash }));
+    return;
   }
 
   // Handle API Set Key (Admin saves Gemini API Key from UI)

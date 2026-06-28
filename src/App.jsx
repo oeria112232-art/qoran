@@ -491,6 +491,35 @@ function App() {
     }
   };
 
+  // Auto version-check: polls server every 5 minutes and silently reloads if a new bundle is deployed
+  useEffect(() => {
+    let currentVersion = '';
+
+    const checkVersion = async () => {
+      try {
+        const res = await fetch('/api/version?t=' + Date.now());
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.version || data.version === 'unknown') return;
+        if (!currentVersion) {
+          currentVersion = data.version;
+          return;
+        }
+        if (data.version !== currentVersion) {
+          console.log('[Bonyan] New version detected, auto-reloading...');
+          window.location.replace(window.location.href.split('?')[0] + '?v=' + Date.now());
+        }
+      } catch {
+        // Silently ignore network errors
+      }
+    };
+
+    // Check immediately, then every 5 minutes
+    checkVersion();
+    const interval = setInterval(checkVersion, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   // 1. Initial Cloud Database Load & Realtime Sync (Firebase Realtime Database)
   useEffect(() => {
     const dbRef = ref(db, '/');
