@@ -266,10 +266,15 @@ body {
   background-color: #ffffff;
   border-top: 1px solid var(--color-border);
   padding: 0.6rem 0;
-  position: sticky;
+  position: fixed;
   bottom: 0;
-  z-index: 10;
-  margin-top: auto;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+}
+
+.App:not(.wide-layout) .app-body-wrapper {
+  padding-bottom: 75px;
 }
 
 .nav-item {

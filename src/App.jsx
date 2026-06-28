@@ -228,7 +228,6 @@ function App() {
   const [studentAiInput, setStudentAiInput] = useState('');
   const [studentAiSelectedImage, setStudentAiSelectedImage] = useState('');
   const [isStudentAiTyping, setIsStudentAiTyping] = useState(false);
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [isAdminSidebarOpen, setIsAdminSidebarOpen] = useState(false);
 
 
@@ -238,8 +237,6 @@ function App() {
   const [aiQuestionCount, setAiQuestionCount] = useState(5);
   const [aiStudentName, setAiStudentName] = useState('');
   const [aiStudentPoints, setAiStudentPoints] = useState('');
-  const [isCloudLoaded, setIsCloudLoaded] = useState(false);
-  const [isDatabaseLoadedSuccessfully, setIsDatabaseLoadedSuccessfully] = useState(false);
 
   // 20 requests per user limit state
   const [aiUsage, setAiUsage] = useState(() => JSON.parse(localStorage.getItem('bonyan_ai_usage')) || {});
@@ -248,19 +245,162 @@ function App() {
     localStorage.setItem('bonyan_ai_usage', JSON.stringify(aiUsage));
   }, [aiUsage]);
 
-  useEffect(() => {
-    const initialHeight = window.innerHeight;
-    const handleResize = () => {
-      // If the viewport height decreases by more than 150px, the keyboard is likely open
-      if (initialHeight - window.innerHeight > 150) {
-        setIsKeyboardOpen(true);
-      } else {
-        setIsKeyboardOpen(false);
+  const ensureArray = (val) => {
+    if (!val) return [];
+    if (Array.isArray(val)) return val;
+    return Object.values(val);
+  };
+
+  const saveUpdatesToFirebase = async ({
+    students: nextStudents,
+    classrooms: nextClassrooms,
+    teachers: nextTeachers,
+    admins: nextAdmins,
+    storeProducts: nextStoreProducts,
+    gradingHistory: nextGradingHistory,
+    purchaseOrders: nextPurchaseOrders,
+    aiUsage: nextAiUsage
+  }) => {
+    try {
+      const updates = {};
+      let hasUpdates = false;
+
+      // 1. Compare students
+      if (nextStudents !== undefined) {
+        const arr = ensureArray(nextStudents);
+        if (!prevStudentsRef.current || prevStudentsRef.current.length !== arr.length) {
+          updates['/students'] = arr;
+          hasUpdates = true;
+        } else {
+          arr.forEach((item, idx) => {
+            if (JSON.stringify(item) !== JSON.stringify(prevStudentsRef.current[idx])) {
+              updates[`/students/${idx}`] = item;
+              hasUpdates = true;
+            }
+          });
+        }
+        prevStudentsRef.current = arr;
       }
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+
+      // 2. Compare classrooms
+      if (nextClassrooms !== undefined) {
+        const arr = ensureArray(nextClassrooms);
+        if (!prevClassroomsRef.current || prevClassroomsRef.current.length !== arr.length) {
+          updates['/classrooms'] = arr;
+          hasUpdates = true;
+        } else {
+          arr.forEach((item, idx) => {
+            if (JSON.stringify(item) !== JSON.stringify(prevClassroomsRef.current[idx])) {
+              updates[`/classrooms/${idx}`] = item;
+              hasUpdates = true;
+            }
+          });
+        }
+        prevClassroomsRef.current = arr;
+      }
+
+      // 3. Compare teachers
+      if (nextTeachers !== undefined) {
+        const arr = ensureArray(nextTeachers);
+        if (!prevTeachersRef.current || prevTeachersRef.current.length !== arr.length) {
+          updates['/teachers'] = arr;
+          hasUpdates = true;
+        } else {
+          arr.forEach((item, idx) => {
+            if (JSON.stringify(item) !== JSON.stringify(prevTeachersRef.current[idx])) {
+              updates[`/teachers/${idx}`] = item;
+              hasUpdates = true;
+            }
+          });
+        }
+        prevTeachersRef.current = arr;
+      }
+
+      // 4. Compare admins
+      if (nextAdmins !== undefined) {
+        const arr = ensureArray(nextAdmins);
+        if (!prevAdminsRef.current || prevAdminsRef.current.length !== arr.length) {
+          updates['/admins'] = arr;
+          hasUpdates = true;
+        } else {
+          arr.forEach((item, idx) => {
+            if (JSON.stringify(item) !== JSON.stringify(prevAdminsRef.current[idx])) {
+              updates[`/admins/${idx}`] = item;
+              hasUpdates = true;
+            }
+          });
+        }
+        prevAdminsRef.current = arr;
+      }
+
+      // 5. Compare storeProducts
+      if (nextStoreProducts !== undefined) {
+        const arr = ensureArray(nextStoreProducts);
+        if (!prevStoreProductsRef.current || prevStoreProductsRef.current.length !== arr.length) {
+          updates['/storeProducts'] = arr;
+          hasUpdates = true;
+        } else {
+          arr.forEach((item, idx) => {
+            if (JSON.stringify(item) !== JSON.stringify(prevStoreProductsRef.current[idx])) {
+              updates[`/storeProducts/${idx}`] = item;
+              hasUpdates = true;
+            }
+          });
+        }
+        prevStoreProductsRef.current = arr;
+      }
+
+      // 6. Compare gradingHistory
+      if (nextGradingHistory !== undefined) {
+        const arr = ensureArray(nextGradingHistory);
+        if (!prevGradingHistoryRef.current || prevGradingHistoryRef.current.length !== arr.length) {
+          updates['/gradingHistory'] = arr;
+          hasUpdates = true;
+        } else {
+          arr.forEach((item, idx) => {
+            if (JSON.stringify(item) !== JSON.stringify(prevGradingHistoryRef.current[idx])) {
+              updates[`/gradingHistory/${idx}`] = item;
+              hasUpdates = true;
+            }
+          });
+        }
+        prevGradingHistoryRef.current = arr;
+      }
+
+      // 7. Compare purchaseOrders
+      if (nextPurchaseOrders !== undefined) {
+        const arr = ensureArray(nextPurchaseOrders);
+        if (!prevPurchaseOrdersRef.current || prevPurchaseOrdersRef.current.length !== arr.length) {
+          updates['/purchaseOrders'] = arr;
+          hasUpdates = true;
+        } else {
+          arr.forEach((item, idx) => {
+            if (JSON.stringify(item) !== JSON.stringify(prevPurchaseOrdersRef.current[idx])) {
+              updates[`/purchaseOrders/${idx}`] = item;
+              hasUpdates = true;
+            }
+          });
+        }
+        prevPurchaseOrdersRef.current = arr;
+      }
+
+      // 8. Compare aiUsage
+      if (nextAiUsage !== undefined) {
+        if (JSON.stringify(nextAiUsage) !== JSON.stringify(prevAiUsageRef.current)) {
+          updates['/aiUsage'] = nextAiUsage;
+          hasUpdates = true;
+        }
+        prevAiUsageRef.current = nextAiUsage;
+      }
+
+      if (hasUpdates) {
+        await update(ref(db, '/'), updates);
+        console.log('Successfully saved atomic updates to Firebase directly:', Object.keys(updates));
+      }
+    } catch (err) {
+      console.error('Failed to save direct updates to Firebase:', err);
+    }
+  };
 
   const checkAndIncrementAiLimit = (userId) => {
     if (!userId) return false;
@@ -337,31 +477,38 @@ function App() {
     const unsubscribe = onValue(dbRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.val();
+        
+        const cloudStudents = ensureArray(data.students);
+        const cloudClassrooms = ensureArray(data.classrooms);
+        const cloudTeachers = ensureArray(data.teachers);
+        const cloudAdmins = ensureArray(data.admins);
+        const cloudStoreProducts = ensureArray(data.storeProducts);
+        const cloudGradingHistory = ensureArray(data.gradingHistory).filter(item => item.id !== 'g1' && item.id !== 'g2');
+        const cloudPurchaseOrders = ensureArray(data.purchaseOrders);
+
         // Mark this update as incoming from cloud to prevent echo write
         isIncomingCloudUpdate.current = true;
         
-        if (data.students) setStudents(data.students);
-        if (data.classrooms) setClassrooms(data.classrooms);
-        if (data.teachers) setTeachers(data.teachers);
-        if (data.admins) setAdmins(data.admins);
-        setStoreProducts(data.storeProducts || []);
-        const filteredGradingHistory = (data.gradingHistory || []).filter(item => item.id !== 'g1' && item.id !== 'g2');
-        setGradingHistory(filteredGradingHistory);
-        setPurchaseOrders(data.purchaseOrders || []);
+        if (data.students) setStudents(cloudStudents);
+        if (data.classrooms) setClassrooms(cloudClassrooms);
+        if (data.teachers) setTeachers(cloudTeachers);
+        if (data.admins) setAdmins(cloudAdmins);
+        setStoreProducts(cloudStoreProducts);
+        setGradingHistory(cloudGradingHistory);
+        setPurchaseOrders(cloudPurchaseOrders);
         if (data.aiUsage) setAiUsage(data.aiUsage);
 
         // Update the refs with the incoming cloud values to prevent triggering save effect
-        prevStudentsRef.current = data.students;
-        prevClassroomsRef.current = data.classrooms;
-        prevTeachersRef.current = data.teachers;
-        prevAdminsRef.current = data.admins;
-        prevStoreProductsRef.current = data.storeProducts || [];
-        prevGradingHistoryRef.current = filteredGradingHistory;
-        prevPurchaseOrdersRef.current = data.purchaseOrders || [];
+        prevStudentsRef.current = cloudStudents;
+        prevClassroomsRef.current = cloudClassrooms;
+        prevTeachersRef.current = cloudTeachers;
+        prevAdminsRef.current = cloudAdmins;
+        prevStoreProductsRef.current = cloudStoreProducts;
+        prevGradingHistoryRef.current = cloudGradingHistory;
+        prevPurchaseOrdersRef.current = cloudPurchaseOrders;
         prevAiUsageRef.current = data.aiUsage || {};
         
         console.log('Successfully synced database from Firebase Realtime Database.');
-        setIsDatabaseLoadedSuccessfully(true);
       } else {
         // If Firebase database is empty (does not exist), seed it with initial bonyanDatabase JSON data
         console.log('Firebase is empty. Seeding Firebase with initial database.');
@@ -383,12 +530,10 @@ function App() {
             console.error('Failed to seed initial database to Firebase:', error);
           });
       }
-      setIsCloudLoaded(true);
     }, (error) => {
       console.error('Firebase read error:', error);
       setToastMessage('خطأ: فشل الاتصال بقاعدة بيانات Firebase!');
       setTimeout(() => setToastMessage(''), 3000);
-      setIsCloudLoaded(true);
     });
 
     return () => unsubscribe();
@@ -409,140 +554,6 @@ function App() {
       localStorage.setItem('bonyan_current_user_v3', JSON.stringify(currentUser));
     }
   }, [students, classrooms, teachers, admins, storeProducts, gradingHistory, purchaseOrders, isLoggedIn, currentUser, aiUsage]);
-
-  // 2.5 Sync to Cloud Database (Triggers ONLY when data is loaded successfully AND the data itself changes)
-  useEffect(() => {
-    if (isCloudLoaded && isDatabaseLoadedSuccessfully && students && students.length >= 300) {
-      if (isIncomingCloudUpdate.current) {
-        // Prevent infinite write loop by skipping this update which came from Firebase
-        isIncomingCloudUpdate.current = false;
-        return;
-      }
-
-      const saveToCloud = async () => {
-        try {
-          const updates = {};
-          let hasUpdates = false;
-
-          // 1. Compare students
-          if (!prevStudentsRef.current || prevStudentsRef.current.length !== students.length) {
-            updates['/students'] = students;
-            hasUpdates = true;
-          } else {
-            students.forEach((item, idx) => {
-              if (JSON.stringify(item) !== JSON.stringify(prevStudentsRef.current[idx])) {
-                updates[`/students/${idx}`] = item;
-                hasUpdates = true;
-              }
-            });
-          }
-
-          // 2. Compare classrooms
-          if (!prevClassroomsRef.current || prevClassroomsRef.current.length !== classrooms.length) {
-            updates['/classrooms'] = classrooms;
-            hasUpdates = true;
-          } else {
-            classrooms.forEach((item, idx) => {
-              if (JSON.stringify(item) !== JSON.stringify(prevClassroomsRef.current[idx])) {
-                updates[`/classrooms/${idx}`] = item;
-                hasUpdates = true;
-              }
-            });
-          }
-
-          // 3. Compare teachers
-          if (!prevTeachersRef.current || prevTeachersRef.current.length !== teachers.length) {
-            updates['/teachers'] = teachers;
-            hasUpdates = true;
-          } else {
-            teachers.forEach((item, idx) => {
-              if (JSON.stringify(item) !== JSON.stringify(prevTeachersRef.current[idx])) {
-                updates[`/teachers/${idx}`] = item;
-                hasUpdates = true;
-              }
-            });
-          }
-
-          // 4. Compare admins
-          if (!prevAdminsRef.current || prevAdminsRef.current.length !== admins.length) {
-            updates['/admins'] = admins;
-            hasUpdates = true;
-          } else {
-            admins.forEach((item, idx) => {
-              if (JSON.stringify(item) !== JSON.stringify(prevAdminsRef.current[idx])) {
-                updates[`/admins/${idx}`] = item;
-                hasUpdates = true;
-              }
-            });
-          }
-
-          // 5. Compare storeProducts
-          if (!prevStoreProductsRef.current || prevStoreProductsRef.current.length !== storeProducts.length) {
-            updates['/storeProducts'] = storeProducts;
-            hasUpdates = true;
-          } else {
-            storeProducts.forEach((item, idx) => {
-              if (JSON.stringify(item) !== JSON.stringify(prevStoreProductsRef.current[idx])) {
-                updates[`/storeProducts/${idx}`] = item;
-                hasUpdates = true;
-              }
-            });
-          }
-
-          // 6. Compare gradingHistory
-          if (!prevGradingHistoryRef.current || prevGradingHistoryRef.current.length !== gradingHistory.length) {
-            updates['/gradingHistory'] = gradingHistory;
-            hasUpdates = true;
-          } else {
-            gradingHistory.forEach((item, idx) => {
-              if (JSON.stringify(item) !== JSON.stringify(prevGradingHistoryRef.current[idx])) {
-                updates[`/gradingHistory/${idx}`] = item;
-                hasUpdates = true;
-              }
-            });
-          }
-
-          // 7. Compare purchaseOrders
-          if (!prevPurchaseOrdersRef.current || prevPurchaseOrdersRef.current.length !== purchaseOrders.length) {
-            updates['/purchaseOrders'] = purchaseOrders;
-            hasUpdates = true;
-          } else {
-            purchaseOrders.forEach((item, idx) => {
-              if (JSON.stringify(item) !== JSON.stringify(prevPurchaseOrdersRef.current[idx])) {
-                updates[`/purchaseOrders/${idx}`] = item;
-                hasUpdates = true;
-              }
-            });
-          }
-
-          // 8. Compare aiUsage
-          if (JSON.stringify(aiUsage) !== JSON.stringify(prevAiUsageRef.current)) {
-            updates['/aiUsage'] = aiUsage;
-            hasUpdates = true;
-          }
-
-          if (hasUpdates) {
-            await update(ref(db, '/'), updates);
-            console.log('Successfully saved atomic updates to Firebase:', Object.keys(updates));
-          }
-
-          // Update previous references for next save cycle
-          prevStudentsRef.current = students;
-          prevClassroomsRef.current = classrooms;
-          prevTeachersRef.current = teachers;
-          prevAdminsRef.current = admins;
-          prevStoreProductsRef.current = storeProducts;
-          prevGradingHistoryRef.current = gradingHistory;
-          prevPurchaseOrdersRef.current = purchaseOrders;
-          prevAiUsageRef.current = aiUsage;
-        } catch (err) {
-          console.error('Failed to save database updates to Firebase.', err);
-          triggerToast('خطأ: فشل حفظ التعديلات في قاعدة البيانات السحابية!');
-        }
-      };
-      saveToCloud();
-    }
-  }, [students, classrooms, teachers, admins, storeProducts, gradingHistory, purchaseOrders, aiUsage, isCloudLoaded, isDatabaseLoadedSuccessfully]);
 
 
 
@@ -654,38 +665,43 @@ function App() {
     triggerToast('تم تسجيل الخروج بنجاح.');
   };
 
-  // Profile Settings Change Save
   const handleSaveProfileSettings = (e) => {
     e.preventDefault();
     if (!profilePassword) return;
 
     if (currentUser.role === 'student') {
-      setStudents(prev => prev.map(s => {
+      const nextStudents = students.map(s => {
         if (s.id === currentUser.id) {
           const updated = { ...s, password: profilePassword, avatar: profileAvatar || s.avatar };
           setCurrentUser({ ...currentUser, ...updated });
           return updated;
         }
         return s;
-      }));
+      });
+      setStudents(nextStudents);
+      saveUpdatesToFirebase({ students: nextStudents });
     } else if (currentUser.role === 'teacher') {
-      setTeachers(prev => prev.map(t => {
+      const nextTeachers = teachers.map(t => {
         if (t.id === currentUser.id) {
           const updated = { ...t, name: profileName, password: profilePassword, avatar: profileAvatar || t.avatar, whatsapp: profileWhatsapp };
           setCurrentUser({ ...currentUser, ...updated });
           return updated;
         }
         return t;
-      }));
+      });
+      setTeachers(nextTeachers);
+      saveUpdatesToFirebase({ teachers: nextTeachers });
     } else if (currentUser.role === 'admin') {
-      setAdmins(prev => prev.map(a => {
+      const nextAdmins = admins.map(a => {
         if (a.id === currentUser.id) {
           const updated = { ...a, name: profileName, password: profilePassword, avatar: profileAvatar || a.avatar };
           setCurrentUser({ ...currentUser, ...updated });
           return updated;
         }
         return a;
-      }));
+      });
+      setAdmins(nextAdmins);
+      saveUpdatesToFirebase({ admins: nextAdmins });
     } else if (currentUser.role === 'superadmin') {
       setCurrentUser(prev => ({ ...prev, name: profileName, password: profilePassword, avatar: profileAvatar }));
     }
@@ -727,19 +743,19 @@ function App() {
       return;
     }
 
-    setStudents(prev => prev.map(s => {
+    const nextStudents = students.map(s => {
       if (s.id === studentData.id) {
-        return { ...s, availablePoints: s.availablePoints - product.price };
+        return { ...s, availablePoints: (Number(s.availablePoints) || 0) - product.price };
       }
       return s;
-    }));
+    });
 
-    setStoreProducts(prev => prev.map(p => {
+    const nextStoreProducts = storeProducts.map(p => {
       if (p.id === product.id) {
-        return { ...p, stock: p.stock - 1 };
+        return { ...p, stock: (Number(p.stock) || 0) - 1 };
       }
       return p;
-    }));
+    });
 
     const newOrder = {
       id: generateUniqueId('o'),
@@ -750,7 +766,18 @@ function App() {
       date: new Date().toLocaleDateString('ar-EG'),
       status: 'pending'
     };
-    setPurchaseOrders(prev => [newOrder, ...prev]);
+    const nextPurchaseOrders = [newOrder, ...purchaseOrders];
+
+    setStudents(nextStudents);
+    setStoreProducts(nextStoreProducts);
+    setPurchaseOrders(nextPurchaseOrders);
+
+    saveUpdatesToFirebase({
+      students: nextStudents,
+      storeProducts: nextStoreProducts,
+      purchaseOrders: nextPurchaseOrders
+    });
+
     triggerToast(`تم إتمام عملية شراء ${product.name} بنجاح! بانتظار استلامها من المعلم.`);
   };
 
@@ -802,34 +829,36 @@ function App() {
   const confirmGrades = () => {
     if (!selectedStudentId || !currentGradingData) return;
 
-    setStudents(prev => prev.map(s => {
+    const student = students.find(s => s.id === selectedStudentId);
+    if (!student) return;
+
+    const finalHomework = newHomeworkText || student.homework;
+
+    const nextStudents = students.map(s => {
       if (s.id === selectedStudentId) {
         return {
           ...s,
-          totalPoints: Math.round((s.totalPoints + currentGradingData.total) * 10) / 10,
-          availablePoints: Math.round((s.availablePoints + currentGradingData.total) * 10) / 10,
-          homework: newHomeworkText || s.homework
+          totalPoints: Math.round(((Number(s.totalPoints) || 0) + currentGradingData.total) * 10) / 10,
+          availablePoints: Math.round(((Number(s.availablePoints) || 0) + currentGradingData.total) * 10) / 10,
+          homework: finalHomework
         };
       }
       return s;
-    }));
+    });
 
-    const student = students.find(s => s.id === selectedStudentId);
-    if (student) {
-      setClassrooms(prev => prev.map(c => {
-        if (c.id === student.classroomId) {
-          return { ...c, totalPoints: Math.round((c.totalPoints + currentGradingData.total) * 10) / 10 };
-        }
-        return c;
-      }));
-    }
+    const nextClassrooms = classrooms.map(c => {
+      if (c.id === student.classroomId) {
+        return { ...c, totalPoints: Math.round(((Number(c.totalPoints) || 0) + currentGradingData.total) * 10) / 10 };
+      }
+      return c;
+    });
 
     const historyItem = {
       id: generateUniqueId('g'),
       studentId: selectedStudentId,
       isoDate: getLocalDateString(),
       date: new Date().toLocaleDateString('ar-EG', { weekday: 'long', month: 'numeric', day: 'numeric' }),
-      homework: newHomeworkText || student.homework,
+      homework: finalHomework,
       grades: {
         memorization: currentGradingData.memorization,
         versesCount: currentGradingData.versesCount,
@@ -838,7 +867,17 @@ function App() {
         activity: currentGradingData.activity
       }
     };
-    setGradingHistory(prev => [historyItem, ...prev]);
+    const nextGradingHistory = [historyItem, ...gradingHistory];
+
+    setStudents(nextStudents);
+    setClassrooms(nextClassrooms);
+    setGradingHistory(nextGradingHistory);
+
+    saveUpdatesToFirebase({
+      students: nextStudents,
+      classrooms: nextClassrooms,
+      gradingHistory: nextGradingHistory
+    });
 
     setShowGradingPopup(false);
     triggerToast('تم رصد وتقييم الطالب بنجاح وتحديث نقاطه!');
@@ -857,13 +896,17 @@ function App() {
     e.preventDefault();
     if (!newAdminName || !newAdminEmail || !newAdminPassword) return;
 
+    let nextAdmins = [...admins];
+
     if (editingAdminId) {
-      setAdmins(prev => prev.map(a => {
+      nextAdmins = admins.map(a => {
         if (a.id === editingAdminId) {
           return { ...a, name: newAdminName, email: newAdminEmail, password: newAdminPassword };
         }
         return a;
-      }));
+      });
+      setAdmins(nextAdmins);
+      saveUpdatesToFirebase({ admins: nextAdmins });
       setEditingAdminId(null);
       triggerToast('تم تحديث حساب المشرف');
     } else {
@@ -873,7 +916,9 @@ function App() {
         email: newAdminEmail,
         password: newAdminPassword
       };
-      setAdmins(prev => [...prev, newAdmin]);
+      nextAdmins.push(newAdmin);
+      setAdmins(nextAdmins);
+      saveUpdatesToFirebase({ admins: nextAdmins });
       triggerToast('تم إضافة المشرف بنجاح');
     }
 
@@ -890,23 +935,27 @@ function App() {
   };
 
   const deleteAdminAccount = (id) => {
-    setAdmins(prev => prev.filter(a => a.id !== id));
+    const nextAdmins = admins.filter(a => a.id !== id);
+    setAdmins(nextAdmins);
+    saveUpdatesToFirebase({ admins: nextAdmins });
     triggerToast('تم حذف حساب الآدمن');
   };
-
-
 
   const handleDeleteClassroomTeacher = (classId) => {
     const teacher = teachers.find(t => t.classroomId === classId);
     if (!teacher) return;
 
-    setTeachers(prev => prev.filter(t => t.id !== teacher.id));
-    setClassrooms(prev => prev.map(c => {
+    const nextTeachers = teachers.filter(t => t.id !== teacher.id);
+    const nextClassrooms = classrooms.map(c => {
       if (c.id === classId) {
         return { ...c, teacherId: '' };
       }
       return c;
-    }));
+    });
+
+    setTeachers(nextTeachers);
+    setClassrooms(nextClassrooms);
+    saveUpdatesToFirebase({ teachers: nextTeachers, classrooms: nextClassrooms });
 
     triggerToast('تم حذف حساب المعلم وإلغاء تعيينه من الحلقة');
   };
@@ -919,8 +968,10 @@ function App() {
       return;
     }
 
+    let nextStudents = [...students];
+
     if (editingStudentObj) {
-      setStudents(prev => prev.map(s => {
+      nextStudents = students.map(s => {
         if (s.id === editingStudentObj.id) {
           return {
             ...s,
@@ -932,7 +983,9 @@ function App() {
           };
         }
         return s;
-      }));
+      });
+      setStudents(nextStudents);
+      saveUpdatesToFirebase({ students: nextStudents });
       triggerToast('تم تعديل بيانات الطالب بنجاح');
     } else {
       const usernameExists = students.some(s => s.username === studentFormUsername);
@@ -953,7 +1006,9 @@ function App() {
         homework: 'لم يحدد واجب بعد',
         isSuspended: false
       };
-      setStudents(prev => [...prev, newStudent]);
+      nextStudents.push(newStudent);
+      setStudents(nextStudents);
+      saveUpdatesToFirebase({ students: nextStudents });
       triggerToast('تم إضافة الطالب الجديد بنجاح');
     }
 
@@ -973,8 +1028,11 @@ function App() {
       return;
     }
 
+    let nextTeachers = [...teachers];
+    let nextClassrooms = [...classrooms];
+
     if (editingTeacherObj) {
-      setTeachers(prev => prev.map(t => {
+      nextTeachers = teachers.map(t => {
         if (t.id === editingTeacherObj.id) {
           return {
             ...t,
@@ -985,9 +1043,9 @@ function App() {
           };
         }
         return t;
-      }));
+      });
       if (teacherFormClassId) {
-        setClassrooms(prev => prev.map(c => {
+        nextClassrooms = classrooms.map(c => {
           if (c.id === teacherFormClassId) {
             return { ...c, teacherId: editingTeacherObj.id };
           }
@@ -995,15 +1053,18 @@ function App() {
             return { ...c, teacherId: '' };
           }
           return c;
-        }));
+        });
       } else {
-        setClassrooms(prev => prev.map(c => {
+        nextClassrooms = classrooms.map(c => {
           if (c.teacherId === editingTeacherObj.id) {
             return { ...c, teacherId: '' };
           }
           return c;
-        }));
+        });
       }
+      setTeachers(nextTeachers);
+      setClassrooms(nextClassrooms);
+      saveUpdatesToFirebase({ teachers: nextTeachers, classrooms: nextClassrooms });
       triggerToast('تم تعديل بيانات المعلم بنجاح');
     } else {
       const newTId = generateUniqueId('t');
@@ -1017,15 +1078,18 @@ function App() {
         whatsapp: teacherFormWhatsapp || 'لا يوجد رقم مسجل',
         classroomId: teacherFormClassId || ''
       };
-      setTeachers(prev => [...prev, newTeacher]);
+      nextTeachers.push(newTeacher);
       if (teacherFormClassId) {
-        setClassrooms(prev => prev.map(c => {
+        nextClassrooms = classrooms.map(c => {
           if (c.id === teacherFormClassId) {
             return { ...c, teacherId: newTId };
           }
           return c;
-        }));
+        });
       }
+      setTeachers(nextTeachers);
+      setClassrooms(nextClassrooms);
+      saveUpdatesToFirebase({ teachers: nextTeachers, classrooms: nextClassrooms });
       triggerToast('تم إضافة المعلم الجديد بنجاح! اسم المستخدم: ' + generatedUsername);
     }
 
@@ -1039,13 +1103,16 @@ function App() {
 
   const handleDeleteTeacher = (id) => {
     if (window.confirm('هل أنت متأكد من حذف هذا المعلم نهائياً؟ سيتم إلغاء إسناد حلقته أيضاً.')) {
-      setTeachers(prev => prev.filter(t => t.id !== id));
-      setClassrooms(prev => prev.map(c => {
+      const nextTeachers = teachers.filter(t => t.id !== id);
+      const nextClassrooms = classrooms.map(c => {
         if (c.teacherId === id) {
           return { ...c, teacherId: '' };
         }
         return c;
-      }));
+      });
+      setTeachers(nextTeachers);
+      setClassrooms(nextClassrooms);
+      saveUpdatesToFirebase({ teachers: nextTeachers, classrooms: nextClassrooms });
       triggerToast('تم حذف المعلم بنجاح');
     }
   };
@@ -1057,8 +1124,11 @@ function App() {
       return;
     }
 
+    let nextClassrooms = [...classrooms];
+    let nextTeachers = [...teachers];
+
     if (editingClassObj) {
-      setClassrooms(prev => prev.map(c => {
+      nextClassrooms = classrooms.map(c => {
         if (c.id === editingClassObj.id) {
           return {
             ...c,
@@ -1067,9 +1137,9 @@ function App() {
           };
         }
         return c;
-      }));
+      });
       if (classFormTeacherId) {
-        setTeachers(prev => prev.map(t => {
+        nextTeachers = teachers.map(t => {
           if (t.id === classFormTeacherId) {
             return { ...t, classroomId: editingClassObj.id };
           }
@@ -1077,8 +1147,11 @@ function App() {
             return { ...t, classroomId: '' };
           }
           return t;
-        }));
+        });
       }
+      setClassrooms(nextClassrooms);
+      setTeachers(nextTeachers);
+      saveUpdatesToFirebase({ classrooms: nextClassrooms, teachers: nextTeachers });
       triggerToast('تم تعديل بيانات الحلقة بنجاح');
     } else {
       const newCId = generateUniqueId('c');
@@ -1088,15 +1161,18 @@ function App() {
         teacherId: classFormTeacherId || '',
         totalPoints: 0
       };
-      setClassrooms(prev => [...prev, newClass]);
+      nextClassrooms.push(newClass);
       if (classFormTeacherId) {
-        setTeachers(prev => prev.map(t => {
+        nextTeachers = teachers.map(t => {
           if (t.id === classFormTeacherId) {
             return { ...t, classroomId: newCId };
           }
           return t;
-        }));
+        });
       }
+      setClassrooms(nextClassrooms);
+      setTeachers(nextTeachers);
+      saveUpdatesToFirebase({ classrooms: nextClassrooms, teachers: nextTeachers });
       triggerToast('تم إضافة الحلقة الجديدة بنجاح');
     }
 
@@ -1108,37 +1184,49 @@ function App() {
 
   const handleDeleteStudent = (id) => {
     if (window.confirm('هل أنت متأكد من حذف هذا الطالب نهائياً من المنصة؟')) {
-      setStudents(prev => prev.filter(s => s.id !== id));
+      const nextStudents = students.filter(s => s.id !== id);
+      setStudents(nextStudents);
+      saveUpdatesToFirebase({ students: nextStudents });
       triggerToast('تم حذف الطالب بنجاح');
     }
   };
 
   const handleToggleSuspendStudent = (id) => {
-    setStudents(prev => prev.map(s => {
+    let nextStatus = false;
+    const nextStudents = students.map(s => {
       if (s.id === id) {
-        const nextStatus = !s.isSuspended;
-        triggerToast(nextStatus ? 'تم تعليق عضوية الطالب بنجاح' : 'تم تفعيل عضوية الطالب بنجاح');
+        nextStatus = !s.isSuspended;
         return { ...s, isSuspended: nextStatus };
       }
       return s;
-    }));
+    });
+    setStudents(nextStudents);
+    saveUpdatesToFirebase({ students: nextStudents });
+    triggerToast(nextStatus ? 'تم تعليق عضوية الطالب بنجاح' : 'تم تفعيل عضوية الطالب بنجاح');
   };
 
   const handleMoveStudent = (studentId, targetClassId) => {
-    setStudents(prev => prev.map(s => {
+    const nextStudents = students.map(s => {
       if (s.id === studentId) {
         return { ...s, classroomId: targetClassId };
       }
       return s;
-    }));
+    });
+    setStudents(nextStudents);
+    saveUpdatesToFirebase({ students: nextStudents });
     triggerToast('تم نقل الطالب إلى الحلقة المحددة بنجاح');
   };
 
   const handleDeleteClassroomObj = (classId) => {
     if (window.confirm('هل أنت متأكد من حذف هذه الحلقة نهائياً؟')) {
-      setClassrooms(prev => prev.filter(c => c.id !== classId));
-      setTeachers(prev => prev.map(t => t.classroomId === classId ? { ...t, classroomId: '' } : t));
-      setStudents(prev => prev.map(s => s.classroomId === classId ? { ...s, classroomId: '' } : s));
+      const nextClassrooms = classrooms.filter(c => c.id !== classId);
+      const nextTeachers = teachers.map(t => t.classroomId === classId ? { ...t, classroomId: '' } : t);
+      const nextStudents = students.map(s => s.classroomId === classId ? { ...s, classroomId: '' } : s);
+      
+      setClassrooms(nextClassrooms);
+      setTeachers(nextTeachers);
+      setStudents(nextStudents);
+      saveUpdatesToFirebase({ classrooms: nextClassrooms, teachers: nextTeachers, students: nextStudents });
       triggerToast('تم حذف الحلقة بنجاح');
     }
   };
@@ -1155,12 +1243,14 @@ function App() {
       return;
     }
 
-    setStudents(prev => prev.map(s => {
+    const nextStudents = students.map(s => {
       if (s.classroomId === teacherClassroom.id) {
         return { ...s, homework: collectiveHomeworkText };
       }
       return s;
-    }));
+    });
+    setStudents(nextStudents);
+    saveUpdatesToFirebase({ students: nextStudents });
 
     triggerToast('تم إسناد الواجب لجميع طلاب الحلقة بنجاح!');
     setCollectiveHomeworkText('');
@@ -1172,12 +1262,14 @@ function App() {
       return;
     }
 
-    setStudents(prev => prev.map(s => {
+    const nextStudents = students.map(s => {
       if (s.id === studentId) {
         return { ...s, homework: homeworkText };
       }
       return s;
-    }));
+    });
+    setStudents(nextStudents);
+    saveUpdatesToFirebase({ students: nextStudents });
 
     triggerToast('تم تحديث واجب الطالب بنجاح!');
   };
@@ -1278,8 +1370,10 @@ function App() {
     e.preventDefault();
     if (!newProduct.name || !newProduct.price) return;
 
+    let nextProducts = [...storeProducts];
+
     if (editingProductId) {
-      setStoreProducts(prev => prev.map(p => {
+      nextProducts = storeProducts.map(p => {
         if (p.id === editingProductId) {
           return {
             ...p,
@@ -1290,7 +1384,9 @@ function App() {
           };
         }
         return p;
-      }));
+      });
+      setStoreProducts(nextProducts);
+      saveUpdatesToFirebase({ storeProducts: nextProducts });
       setEditingProductId(null);
       triggerToast('تم تحديث الهدية في المتجر');
     } else {
@@ -1301,7 +1397,9 @@ function App() {
         price: Number(newProduct.price),
         stock: Number(newProduct.stock)
       };
-      setStoreProducts(prev => [...prev, newP]);
+      nextProducts.push(newP);
+      setStoreProducts(nextProducts);
+      saveUpdatesToFirebase({ storeProducts: nextProducts });
       triggerToast('تم إضافة الهدية للمتجر');
     }
 
@@ -1331,7 +1429,9 @@ function App() {
   };
 
   const deleteStoreProduct = (id) => {
-    setStoreProducts(prev => prev.filter(p => p.id !== id));
+    const nextProducts = storeProducts.filter(p => p.id !== id);
+    setStoreProducts(nextProducts);
+    saveUpdatesToFirebase({ storeProducts: nextProducts });
     triggerToast('تم حذف الهدية من المتجر');
   };
 
@@ -1779,26 +1879,25 @@ function App() {
             )}
 
             {/* Student Bottom Navigation bar */}
-            {!isKeyboardOpen && (
-              <nav className="bottom-nav">
-                <button className={`nav-item ${studentTab === 'dashboard' ? 'active' : ''}`} onClick={() => setStudentTab('dashboard')}>
-                  <span className="nav-icon">👤</span>
-                  <span>الرئيسية</span>
-                </button>
-                <button className={`nav-item ${studentTab === 'store' ? 'active' : ''}`} onClick={() => setStudentTab('store')}>
-                  <span className="nav-icon">🛒</span>
-                  <span>المتجر</span>
-                </button>
-                <button className={`nav-item ${studentTab === 'ai' ? 'active' : ''}`} onClick={() => setStudentTab('ai')}>
-                  <span className="nav-icon">🤖</span>
-                  <span>المساعد الذكي</span>
-                </button>
-                <button className={`nav-item ${studentTab === 'profile' ? 'active' : ''}`} onClick={() => setStudentTab('profile')}>
-                  <span className="nav-icon">⚙️</span>
-                  <span>الإعدادات</span>
-                </button>
-              </nav>
-            )}
+            {/* Student Bottom Navigation bar */}
+            <nav className="bottom-nav">
+              <button className={`nav-item ${studentTab === 'dashboard' ? 'active' : ''}`} onClick={() => setStudentTab('dashboard')}>
+                <span className="nav-icon">👤</span>
+                <span>الرئيسية</span>
+              </button>
+              <button className={`nav-item ${studentTab === 'store' ? 'active' : ''}`} onClick={() => setStudentTab('store')}>
+                <span className="nav-icon">🛒</span>
+                <span>المتجر</span>
+              </button>
+              <button className={`nav-item ${studentTab === 'ai' ? 'active' : ''}`} onClick={() => setStudentTab('ai')}>
+                <span className="nav-icon">🤖</span>
+                <span>المساعد الذكي</span>
+              </button>
+              <button className={`nav-item ${studentTab === 'profile' ? 'active' : ''}`} onClick={() => setStudentTab('profile')}>
+                <span className="nav-icon">⚙️</span>
+                <span>الإعدادات</span>
+              </button>
+            </nav>
           </>
         )}
 
@@ -2949,6 +3048,7 @@ function App() {
                                             className="buy-btn" 
                                             style={{ margin: 0, padding: '0.15rem 0.5rem', fontSize: '0.75rem', backgroundColor: 'var(--color-primary)' }}
                                             onClick={() => {
+                                              // eslint-disable-next-line react-hooks/refs
                                               handleMoveStudent(s.id, cls.id);
                                               setStudentSearchForClass('');
                                               triggerToast('تمت إضافة الطالب ' + s.name + ' للحلقة بنجاح!');
@@ -3862,12 +3962,14 @@ function App() {
                                   className="buy-btn" 
                                   style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', margin: 0 }}
                                   onClick={() => {
-                                    setPurchaseOrders(prev => prev.map(o => {
+                                    const nextPurchaseOrders = purchaseOrders.map(o => {
                                       if (o.id === order.id) {
                                         return { ...o, status: 'delivered' };
                                       }
                                       return o;
-                                    }));
+                                    });
+                                    setPurchaseOrders(nextPurchaseOrders);
+                                    saveUpdatesToFirebase({ purchaseOrders: nextPurchaseOrders });
                                     triggerToast('تم تأكيد تسليم الهدية للطالب بنجاح!');
                                   }}
                                 >
