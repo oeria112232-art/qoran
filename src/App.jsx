@@ -543,10 +543,24 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // 1. Initial Cloud Database Load & Realtime Sync (Firebase Realtime Database)
   useEffect(() => {
     const dbRef = ref(db, '/');
+    
+    // Fallback: If Firebase connection takes more than 4.5 seconds (slow connection/offline),
+    // bypass the green screen and allow local operations.
+    const fallbackTimeout = setTimeout(() => {
+      setDatabaseLoaded(prev => {
+        if (!prev) {
+          console.warn('Firebase sync timed out. Falling back to local storage.');
+          triggerToast('⚠️ الاتصال بطيء. تم التحميل المؤقت من ذاكرة المتصفح.');
+          return true;
+        }
+        return prev;
+      });
+    }, 4500);
+
     const unsubscribe = onValue(dbRef, (snapshot) => {
+      clearTimeout(fallbackTimeout);
       if (snapshot.exists()) {
         const data = snapshot.val();
         
@@ -581,7 +595,6 @@ function App() {
         prevPurchaseOrdersRef.current = cloudPurchaseOrders;
         prevAiUsageRef.current = data.aiUsage || {};
 
-        
         setDatabaseLoaded(true);
         console.log('Successfully synced database from Firebase Realtime Database.');
       } else {
@@ -607,12 +620,17 @@ function App() {
           });
       }
     }, (error) => {
+      clearTimeout(fallbackTimeout);
       console.error('Firebase read error:', error);
       setToastMessage('خطأ: فشل الاتصال بقاعدة بيانات Firebase!');
       setTimeout(() => setToastMessage(''), 3000);
+      setDatabaseLoaded(true); // Bypass to let them use local data if error occurs
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(fallbackTimeout);
+      unsubscribe();
+    };
   }, []);
 
   // 2. Sync to localStorage
