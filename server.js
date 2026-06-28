@@ -77,8 +77,19 @@ const server = http.createServer((req, res) => {
     req.on('end', async () => {
       try {
         const { userPrompt, systemInstruction, imageBase64 } = JSON.parse(body);
-        const GEMINI_API_KEY = "AQ.Ab8RN6IDw5D9b3S6PTMyaelq41jSqzi7JTM1EjY6qkP-RBKDmQ";
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        let keyToUse = "AQ.Ab8RN6IDw5D9b3S6PTMyaelq41jSqzi7JTM1EjY6qkP-RBKDmQ";
+        const keyFilePath = path.resolve(__dirname, 'api_key.txt');
+        if (fs.existsSync(keyFilePath)) {
+          try {
+            const fileKey = fs.readFileSync(keyFilePath, 'utf8').trim();
+            if (fileKey) {
+              keyToUse = fileKey;
+            }
+          } catch (e) {
+            console.error('Failed to read api_key.txt dynamically:', e);
+          }
+        }
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${keyToUse}`;
         
         const parts = [{ text: `${systemInstruction}\n\nالسياق/سؤال المستخدم:\n${userPrompt}` }];
         if (imageBase64) {
