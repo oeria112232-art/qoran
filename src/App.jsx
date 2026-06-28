@@ -251,6 +251,41 @@ function App() {
     return Object.values(val);
   };
 
+  const compressAndResizeImage = (file, maxWidth = 300, maxHeight = 300, quality = 0.7) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height *= maxWidth / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width *= maxHeight / height;
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => resolve(reader.result);
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const saveUpdatesToFirebase = async ({
     students: nextStudents,
     classrooms: nextClassrooms,
@@ -1733,12 +1768,11 @@ function App() {
                         type="file" 
                         accept="image/*" 
                         className="avatar-file-input"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files[0];
                           if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => setProfileAvatar(reader.result);
-                            reader.readAsDataURL(file);
+                            const res = await compressAndResizeImage(file, 200, 200, 0.7);
+                            setProfileAvatar(res);
                           }
                         }} 
                       />
@@ -1848,14 +1882,11 @@ function App() {
                     id="ai-image-upload" 
                     accept="image/*" 
                     style={{ display: 'none' }} 
-                    onChange={e => {
+                    onChange={async (e) => {
                       const file = e.target.files[0];
                       if (file) {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                          setStudentAiSelectedImage(reader.result);
-                        };
-                        reader.readAsDataURL(file);
+                        const res = await compressAndResizeImage(file, 400, 400, 0.7);
+                        setStudentAiSelectedImage(res);
                       }
                       e.target.value = '';
                     }}
@@ -2248,12 +2279,11 @@ function App() {
                         type="file" 
                         accept="image/*" 
                         className="avatar-file-input"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files[0];
                           if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => setProfileAvatar(reader.result);
-                            reader.readAsDataURL(file);
+                            const res = await compressAndResizeImage(file, 200, 200, 0.7);
+                            setProfileAvatar(res);
                           }
                         }} 
                       />
@@ -3999,14 +4029,11 @@ function App() {
                           accept="image/*" 
                           className="admin-input" 
                           style={{ padding: '0.3rem' }}
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const file = e.target.files[0];
                             if (file) {
-                              const reader = new FileReader();
-                              reader.onloadend = () => {
-                                setNewProduct({ ...newProduct, image: reader.result });
-                              };
-                              reader.readAsDataURL(file);
+                              const res = await compressAndResizeImage(file, 400, 400, 0.7);
+                              setNewProduct({ ...newProduct, image: res });
                             }
                           }} 
                         />
@@ -4189,12 +4216,11 @@ function App() {
                         type="file" 
                         accept="image/*" 
                         className="avatar-file-input"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files[0];
                           if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => setProfileAvatar(reader.result);
-                            reader.readAsDataURL(file);
+                            const res = await compressAndResizeImage(file, 200, 200, 0.7);
+                            setProfileAvatar(res);
                           }
                         }} 
                       />
