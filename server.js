@@ -119,7 +119,22 @@ const server = http.createServer((req, res) => {
     if (isOldJs || isOldCss) {
       console.log(`Intercepting outdated asset: ${requestedFile}. Forcing client reload.`);
       res.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-store' });
-      res.end('console.warn("[Bonyan] Outdated bundle detected, reloading page..."); setTimeout(function(){ window.location.replace(window.location.href.split("?")[0] + "?v=" + Date.now()); }, 100);');
+      // Protect against infinite loops by using sessionStorage counter
+      const reloadCode = `
+        (function() {
+          var count = parseInt(sessionStorage.getItem('bonyan_intercept_reload') || '0', 10);
+          if (count < 3) {
+            sessionStorage.setItem('bonyan_intercept_reload', (count + 1) + '');
+            console.warn('[Bonyan] Outdated bundle, reloading page...');
+            setTimeout(function(){ 
+              window.location.replace(window.location.href.split('?')[0] + '?v=' + Date.now()); 
+            }, 150);
+          } else {
+            console.error('[Bonyan] Prevented infinite reload loop due to webview cache.');
+          }
+        })();
+      `;
+      res.end(reloadCode);
       return;
     }
   }
