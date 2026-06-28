@@ -44,6 +44,21 @@ const getStudentRankName = (totalPoints) => {
   return 'طالب القرآن';
 };
 
+// Helper: Calculate grading session total points using the correct Quranic verses formula
+const calculateSessionTotal = (grades) => {
+  if (!grades) return 0;
+  const memorization = Number(grades.memorization) || 0;
+  // If versesCount is undefined/null/0, treat multiplier as 1.0 (equivalent to 10 verses) to support legacy records
+  const verses = (grades.versesCount !== undefined && grades.versesCount !== null) ? Number(grades.versesCount) : 10;
+  const versesMultiplier = verses > 0 ? (verses * 0.1) : 1.0;
+  const behavior = Number(grades.behavior) || 0;
+  const attendance = Number(grades.attendance) || 0;
+  const activity = Number(grades.activity) || 0;
+  
+  return Math.round(((memorization * versesMultiplier) + behavior + attendance + activity) * 10) / 10;
+};
+
+
 function App() {
   const isIncomingCloudUpdate = useRef(false);
   const prevStudentsRef = useRef(null);
@@ -908,11 +923,12 @@ function App() {
       }
     }
 
-    // Calculate Memorization Points = درجة الحفظ مباشرة
+    // Calculate Memorization Points = درجة الحفظ * (عدد الآيات * 0.1)
     const rawMemorizationPoints = Number(gradeMemorization) || 0;
-    const memorizationPoints = rawMemorizationPoints;
+    const versesMultiplier = gradeVersesCount !== undefined ? Number(gradeVersesCount) * 0.1 : 1.0;
+    const memorizationPoints = Math.round((rawMemorizationPoints * versesMultiplier) * 10) / 10;
 
-    const total = memorizationPoints + Number(gradeBehavior) + Number(gradeAttendance) + (currentUser.role === 'teacher' ? 0 : Number(gradeActivity));
+    const total = Math.round((memorizationPoints + Number(gradeBehavior) + Number(gradeAttendance) + (currentUser.role === 'teacher' ? 0 : Number(gradeActivity))) * 10) / 10;
 
     setCurrentGradingData({
       memorization: gradeMemorization,
@@ -1950,12 +1966,7 @@ function App() {
                     </div>
                   ) : (
                     mySessions.map(session => {
-                      const total = session.grades
-                        ? (Number(session.grades.memorization) || 0) +
-                          (Number(session.grades.behavior) || 0) +
-                          (Number(session.grades.attendance) || 0) +
-                          (Number(session.grades.activity) || 0)
-                        : 0;
+                      const total = session.grades ? calculateSessionTotal(session.grades) : 0;
                       return (
                         <div key={session.id} className="lesson-card">
                           <div className="lesson-card-header">
@@ -1968,7 +1979,7 @@ function App() {
                               fontWeight: '700',
                               fontSize: '0.85rem'
                             }}>
-                              {total} / 20
+                              {total >= 0 ? `+${total} نقطة` : `${total} نقطة`}
                             </span>
                           </div>
                           {session.grades && (
@@ -1982,7 +1993,7 @@ function App() {
                                 <div style={{ color: 'var(--color-text-gray)', fontSize: '0.75rem' }}>📋 السلوك</div>
                               </div>
                               <div style={{ background: '#f5f5f5', borderRadius: '8px', padding: '0.4rem 0.6rem', fontSize: '0.82rem', textAlign: 'center' }}>
-                                <div style={{ fontWeight: '700', color: 'var(--color-primary)' }}>{session.grades.attendance}/5</div>
+                                <div style={{ fontWeight: '700', color: 'var(--color-primary)' }}>{session.grades.attendance}/10</div>
                                 <div style={{ color: 'var(--color-text-gray)', fontSize: '0.75rem' }}>✅ الحضور</div>
                               </div>
                               {session.grades.versesCount > 0 && (
@@ -2184,12 +2195,7 @@ function App() {
                         </div>
                         {sessions.map(session => {
                           const student = students.find(s => s.id === session.studentId);
-                          const total = session.grades
-                            ? (Number(session.grades.memorization) || 0) +
-                              (Number(session.grades.behavior) || 0) +
-                              (Number(session.grades.attendance) || 0) +
-                              (Number(session.grades.activity) || 0)
-                            : 0;
+                          const total = calculateSessionTotal(session.grades);
                           return (
                             <div key={session.id} className="lesson-card" style={{ marginBottom: '0.6rem' }}>
                               <div className="lesson-card-header">
@@ -2204,7 +2210,7 @@ function App() {
                                   fontWeight: '700',
                                   fontSize: '0.85rem'
                                 }}>
-                                  {total} / 20
+                                  {total >= 0 ? `+${total} نقطة` : `${total} نقطة`}
                                 </span>
                               </div>
                               {session.grades && (
@@ -2213,7 +2219,7 @@ function App() {
                                   <span>•</span>
                                   <span>📋 السلوك: {session.grades.behavior}/5</span>
                                   <span>•</span>
-                                  <span>✅ الحضور: {session.grades.attendance}/5</span>
+                                  <span>✅ الحضور: {session.grades.attendance}/10</span>
                                   {session.grades.versesCount > 0 && (
                                     <><span>•</span><span>🔢 آيات: {session.grades.versesCount}</span></>
                                   )}
@@ -2455,7 +2461,7 @@ function App() {
                                   <div>حضور: <strong>{item.grades.attendance}</strong></div>
                                 </div>
                                 <div style={{ marginTop: '0.3rem', fontWeight: '700', borderTop: '1px solid #eee', paddingTop: '0.2rem' }}>
-                                  المجموع: {(item.grades.memorization * (item.grades.versesCount * 0.1) + item.grades.behavior + item.grades.attendance).toFixed(1)}
+                                  المجموع: {calculateSessionTotal(item.grades)}
                                 </div>
                               </div>
                             ))}
@@ -2478,18 +2484,18 @@ function App() {
                         </div>
                       </div>
 
-                      {/* Memorization points grade out of 20 */}
+                      {/* Memorization points grade out of 10 */}
                       <div className="grade-input-card">
-                        <div className="grade-label"><span>📖</span><span>درجة الحفظ والتجويد (من 20):</span></div>
+                        <div className="grade-label"><span>📖</span><span>درجة الحفظ والتجويد (من 10):</span></div>
                         <div className="grade-input-wrapper">
-                          <input type="number" min="0" max="20" className="grade-number-input" value={gradeMemorization} onChange={(e) => setGradeMemorization(Math.min(20, Math.max(0, Number(e.target.value))))} />
-                          <span>/ 20</span>
+                          <input type="number" min="0" max="10" className="grade-number-input" value={gradeMemorization} onChange={(e) => setGradeMemorization(Math.min(10, Math.max(0, Number(e.target.value))))} />
+                          <span>/ 10</span>
                         </div>
                       </div>
 
                       {/* Real-time Math helper banner */}
                       <div className="text-center mb-1" style={{ fontSize: '0.85rem', color: 'var(--color-primary-light)', padding: '0.4rem', backgroundColor: '#eef6f4', borderRadius: '6px', fontWeight: '700' }}>
-                        مجموع النقاط المضافة اليوم: {gradeMemorization} (حفظ) + {gradeBehavior} (سلوك) + {gradeAttendance} (حضور) = {Number(gradeMemorization) + Number(gradeBehavior) + Number(gradeAttendance)} نقطة
+                        مجموع النقاط المضافة اليوم: {Math.round((Number(gradeMemorization) * Number(gradeVersesCount) * 0.1) * 10) / 10} (حفظ معدّل بالآيات) + {gradeBehavior} (سلوك) + {gradeAttendance} (حضور) = {Math.round(((Number(gradeMemorization) * Number(gradeVersesCount) * 0.1) + Number(gradeBehavior) + Number(gradeAttendance)) * 10) / 10} نقطة
                       </div>
 
                       <div className="grade-input-card">
@@ -2531,7 +2537,7 @@ function App() {
                               <div className="history-item"><span>حضور:</span><strong>{item.grades.attendance}</strong></div>
                               <div className="history-item" style={{ borderTop: '1px solid var(--color-border)', marginTop: '0.2rem', paddingTop: '0.2rem', fontWeight: '700' }}>
                                 <span>المجموع:</span>
-                                <span>{(item.grades.memorization * (item.grades.versesCount * 0.1) + item.grades.behavior + item.grades.attendance).toFixed(1)}</span>
+                                <span>{calculateSessionTotal(item.grades)}</span>
                               </div>
                             </div>
                           ))
@@ -2869,7 +2875,7 @@ function App() {
                                     <div>حضور: <strong>{item.grades.attendance}</strong></div>
                                   </div>
                                   <div style={{ marginTop: '0.3rem', fontWeight: '700', borderTop: '1px solid #eee', paddingTop: '0.2rem' }}>
-                                    المجموع: {(item.grades.memorization * (item.grades.versesCount * 0.1) + item.grades.behavior + item.grades.attendance).toFixed(1)}
+                                    المجموع: {calculateSessionTotal(item.grades)}
                                   </div>
                                 </div>
                               ))}
@@ -2882,13 +2888,13 @@ function App() {
                           <input type="number" className="grade-number-input" value={gradeVersesCount} onChange={e => setGradeVersesCount(Math.max(1, Number(e.target.value)))} />
                         </div>
                         <div className="grade-input-card">
-                          <span>درجة الحفظ والتجويد (من 20):</span>
-                          <input type="number" className="grade-number-input" value={gradeMemorization} onChange={e => setGradeMemorization(Math.min(20, Math.max(0, Number(e.target.value))))} />
+                          <span>درجة الحفظ والتجويد (من 10):</span>
+                          <input type="number" className="grade-number-input" value={gradeMemorization} onChange={e => setGradeMemorization(Math.min(10, Math.max(0, Number(e.target.value))))} />
                         </div>
 
                         {/* Math helper */}
                         <div className="text-center mb-1" style={{ fontSize: '0.85rem', color: 'var(--color-primary-light)', padding: '0.4rem', backgroundColor: '#eef6f4', borderRadius: '6px', fontWeight: '700' }}>
-                          مجموع النقاط المضافة اليوم: {gradeMemorization} (حفظ) + {gradeBehavior} (سلوك) + {gradeAttendance} (حضور) {currentUser.role !== 'teacher' ? `+ ${gradeActivity} (نشاط) = ${Number(gradeMemorization) + Number(gradeBehavior) + Number(gradeAttendance) + Number(gradeActivity)}` : `= ${Number(gradeMemorization) + Number(gradeBehavior) + Number(gradeAttendance)}`} نقطة
+                          مجموع النقاط المضافة اليوم: {Math.round((Number(gradeMemorization) * Number(gradeVersesCount) * 0.1) * 10) / 10} (حفظ معدّل بالآيات) + {gradeBehavior} (سلوك) + {gradeAttendance} (حضور) {currentUser.role !== 'teacher' ? `+ ${gradeActivity} (نشاط) = ${Math.round(((Number(gradeMemorization) * Number(gradeVersesCount) * 0.1) + Number(gradeBehavior) + Number(gradeAttendance) + Number(gradeActivity)) * 10) / 10}` : `= ${Math.round(((Number(gradeMemorization) * Number(gradeVersesCount) * 0.1) + Number(gradeBehavior) + Number(gradeAttendance)) * 10) / 10}`} نقطة
                         </div>
 
                         <div className="grade-input-card">

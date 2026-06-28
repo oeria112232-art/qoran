@@ -318,7 +318,29 @@ const server = http.createServer((req, res) => {
 
   fs.stat(filePath, (err, stats) => {
     if (err || !stats.isFile()) {
-      // Fallback to index.html for SPA routing
+      const requestedExt = path.extname(filePath).toLowerCase();
+      
+      // If a JS asset is missing, return a cache-busting reload script to update the browser automatically
+      if (requestedExt === '.js') {
+        res.writeHead(200, { 
+          'Content-Type': 'text/javascript', 
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' 
+        });
+        res.end(`
+          console.warn('[Bonyan] Stale JS bundle requested. Reloading with cache bust...');
+          window.location.replace(window.location.origin + '/?cb=' + Date.now());
+        `);
+        return;
+      }
+      
+      // If any other static asset (CSS, image, etc.) is missing, return a clean 404
+      if (requestedExt && requestedExt !== '.html') {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Asset Not Found');
+        return;
+      }
+      
+      // Fallback to index.html for SPA routing (only for page routes without extensions)
       filePath = path.join(DIST_DIR, 'index.html');
     }
 
