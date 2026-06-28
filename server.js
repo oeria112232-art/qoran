@@ -118,20 +118,31 @@ const server = http.createServer((req, res) => {
     req.on('end', async () => {
       try {
         const { userPrompt, systemInstruction, imageBase64 } = JSON.parse(body);
-        let keyToUse = "AQ.Ab8RN6IDw5D9b3S6PTMyaelq41jSqzi7JTM1EjY6qkP-RBKDmQ";
+        // Try to read key from file first, then fall back to env, then empty
+        let keyToUse = process.env.GEMINI_API_KEY || '';
         const keyFilePath = path.resolve(__dirname, 'api_key.txt');
         if (fs.existsSync(keyFilePath)) {
           try {
             const fileKey = fs.readFileSync(keyFilePath, 'utf8').trim();
-            if (fileKey) {
+            if (fileKey && fileKey.length > 5) {
               keyToUse = fileKey;
             }
           } catch (e) {
-            console.error('Failed to read api_key.txt dynamically:', e);
+            console.error('Failed to read api_key.txt:', e);
           }
         }
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${keyToUse}`;
         
+        if (!keyToUse) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'No API key configured. Please add your Gemini API key from the admin settings.' }));
+          return;
+        }
+        
+        // Support both old AI Studio format (AQ.*) and new API key format (AIza*)
+        // Use v1beta for both formats
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${keyToUse}`;
+        console.log('Using key starting with:', keyToUse.substring(0, 8) + '...');
+
         const parts = [{ text: `${systemInstruction}\n\nالسياق/سؤال المستخدم:\n${userPrompt}` }];
         if (imageBase64) {
           const match = imageBase64.match(/^data:(image\/[a-zA-Z0-9.-]+);base64,(.+)$/);
@@ -156,9 +167,16 @@ const server = http.createServer((req, res) => {
         });
 
         const data = await apiResponse.json();
+        
+        // Log Google API errors for debugging
+        if (!apiResponse.ok) {
+          console.error('Google Gemini API Error:', apiResponse.status, JSON.stringify(data));
+        }
+        
         res.writeHead(apiResponse.status, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(data));
       } catch (e) {
+        console.error('AI Proxy internal error:', e.message);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: e.message }));
       }

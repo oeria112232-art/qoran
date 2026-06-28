@@ -482,22 +482,34 @@ function App() {
         })
       });
 
-      if (!response.ok) {
-        throw new Error('API Error');
+      const data = await response.json();
+
+      if (response.status === 400 && data?.error?.includes('No API key')) {
+        return '⚠️ لم يتم إعداد مفتاح الذكاء الاصطناعي بعد. يرجى من المشرف إضافة مفتاح Gemini API من صفحة الإعدادات.';
       }
 
-      const data = await response.json();
+      if (!response.ok) {
+        const googleError = data?.error?.message || data?.error || 'خطأ غير معروف';
+        console.error('Gemini API Error:', googleError);
+        // If it's an invalid key error
+        if (response.status === 400 || response.status === 403) {
+          return `⚠️ مفتاح API غير صالح أو منتهي الصلاحية. يرجى من المشرف تحديث المفتاح من الإعدادات. (${response.status})`;
+        }
+        throw new Error(googleError);
+      }
+
       if (data?.candidates?.[0]?.content?.parts?.[0]?.text) {
         return data.candidates[0].content.parts[0].text;
       } else {
-        console.error("Gemini Proxy Error:", data);
-        throw new Error('Invalid format');
+        console.error('Gemini Proxy Error:', data);
+        throw new Error('Invalid response format');
       }
     } catch (err) {
       console.error(err);
       return 'عذراً، لم أتمكن من الاتصال بالذكاء الاصطناعي حالياً. يرجى التأكد من أن خادم الموقع متصل بنجاح.';
     }
   };
+
 
   // Auto version-check: polls server every 5 minutes and silently reloads if a new bundle is deployed
   useEffect(() => {
