@@ -45,9 +45,33 @@ class ErrorBoundary extends Component {
         }}>
           <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>⚠️</div>
           <h2 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '0.8rem' }}>عذراً، حدث خطأ غير متوقع!</h2>
-          <p style={{ opacity: 0.9, fontSize: '0.95rem', maxWidth: '400px', marginBottom: '2rem' }}>
+          <p style={{ opacity: 0.9, fontSize: '0.95rem', maxWidth: '400px', marginBottom: '1rem' }}>
             واجه التطبيق خطأً مفاجئاً أثناء التشغيل. اضغط على الزر أدناه لتحديث الصفحة وإصلاح المشكلة تلقائياً.
           </p>
+          
+          {/* Debug Info Box */}
+          <div style={{
+            background: 'rgba(0,0,0,0.4)',
+            border: '1px solid rgba(255,255,255,0.15)',
+            borderRadius: '8px',
+            padding: '1rem',
+            maxWidth: '600px',
+            width: '100%',
+            marginBottom: '2rem',
+            textAlign: 'left',
+            fontFamily: 'monospace',
+            fontSize: '0.8rem',
+            color: '#ff8a80',
+            overflowX: 'auto',
+            whiteSpace: 'pre-wrap',
+            direction: 'ltr',
+            boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.5)'
+          }}>
+            <strong style={{ color: '#ffb74d' }}>Error Diagnostics:</strong><br />
+            {this.state.error ? this.state.error.toString() : 'Unknown error'}<br />
+            {this.state.error && this.state.error.stack ? this.state.error.stack.split('\n').slice(0, 3).join('\n') : ''}
+          </div>
+
           <button 
             onClick={this.handleReload}
             style={{
