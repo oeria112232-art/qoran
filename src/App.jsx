@@ -271,7 +271,11 @@ function App() {
   });
 
   useEffect(() => {
-    localStorage.setItem('bonyan_ai_usage', JSON.stringify(aiUsage));
+    try {
+      localStorage.setItem('bonyan_ai_usage', JSON.stringify(aiUsage));
+    } catch (err) {
+      console.warn('[Bonyan] LocalStorage quota exceeded, aiUsage caching disabled:', err);
+    }
   }, [aiUsage]);
 
   const ensureArray = (val) => {
@@ -638,15 +642,19 @@ function App() {
   useEffect(() => {
     // Only save to local storage if it's the correct imported data
     if (students && students.length >= 300) {
-      localStorage.setItem('bonyan_students_v3', JSON.stringify(students));
-      localStorage.setItem('bonyan_classrooms_v3', JSON.stringify(classrooms));
-      localStorage.setItem('bonyan_teachers_v3', JSON.stringify(teachers));
-      localStorage.setItem('bonyan_admins_v3', JSON.stringify(admins));
-      localStorage.setItem('bonyan_store_v3', JSON.stringify(storeProducts));
-      localStorage.setItem('bonyan_grading_history_v3', JSON.stringify(gradingHistory));
-      localStorage.setItem('bonyan_orders_v3', JSON.stringify(purchaseOrders));
-      localStorage.setItem('bonyan_logged_in_v3', JSON.stringify(isLoggedIn));
-      localStorage.setItem('bonyan_current_user_v3', JSON.stringify(currentUser));
+      try {
+        localStorage.setItem('bonyan_students_v3', JSON.stringify(students));
+        localStorage.setItem('bonyan_classrooms_v3', JSON.stringify(classrooms));
+        localStorage.setItem('bonyan_teachers_v3', JSON.stringify(teachers));
+        localStorage.setItem('bonyan_admins_v3', JSON.stringify(admins));
+        localStorage.setItem('bonyan_store_v3', JSON.stringify(storeProducts));
+        localStorage.setItem('bonyan_grading_history_v3', JSON.stringify(gradingHistory));
+        localStorage.setItem('bonyan_orders_v3', JSON.stringify(purchaseOrders));
+        localStorage.setItem('bonyan_logged_in_v3', JSON.stringify(isLoggedIn));
+        localStorage.setItem('bonyan_current_user_v3', JSON.stringify(currentUser));
+      } catch (err) {
+        console.warn('[Bonyan] LocalStorage quota exceeded, caching disabled:', err);
+      }
     }
   }, [students, classrooms, teachers, admins, storeProducts, gradingHistory, purchaseOrders, isLoggedIn, currentUser, aiUsage]);
 
