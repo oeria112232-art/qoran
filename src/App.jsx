@@ -74,9 +74,10 @@ function App() {
   const [students, setStudents] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('bonyan_students_v3'));
-      return Array.isArray(saved) ? saved : bonyanDatabase.students;
+      const base = Array.isArray(saved) ? saved : bonyanDatabase.students;
+      return base.filter(s => s && s.id);
     } catch {
-      return bonyanDatabase.students;
+      return bonyanDatabase.students.filter(s => s && s.id);
     }
   });
 
@@ -84,9 +85,9 @@ function App() {
     try {
       const saved = JSON.parse(localStorage.getItem('bonyan_classrooms_v3'));
       const base = Array.isArray(saved) ? saved : bonyanDatabase.classrooms;
-      return base.map(c => (c.teacherId === 't1' || c.teacherId === 't2') ? { ...c, teacherId: '' } : c);
+      return base.filter(c => c && c.id).map(c => (c.teacherId === 't1' || c.teacherId === 't2') ? { ...c, teacherId: '' } : c);
     } catch {
-      return bonyanDatabase.classrooms.map(c => (c.teacherId === 't1' || c.teacherId === 't2') ? { ...c, teacherId: '' } : c);
+      return bonyanDatabase.classrooms.filter(c => c && c.id).map(c => (c.teacherId === 't1' || c.teacherId === 't2') ? { ...c, teacherId: '' } : c);
     }
   });
 
@@ -94,27 +95,29 @@ function App() {
     try {
       const saved = JSON.parse(localStorage.getItem('bonyan_teachers_v3'));
       const base = Array.isArray(saved) ? saved : bonyanDatabase.teachers;
-      return base.filter(t => t.id !== 't1' && t.id !== 't2');
+      return base.filter(t => t && t.id && t.id !== 't1' && t.id !== 't2');
     } catch {
-      return bonyanDatabase.teachers.filter(t => t.id !== 't1' && t.id !== 't2');
+      return bonyanDatabase.teachers.filter(t => t && t.id && t.id !== 't1' && t.id !== 't2');
     }
   });
 
   const [admins, setAdmins] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('bonyan_admins_v3'));
-      return Array.isArray(saved) ? saved : (bonyanDatabase.admins || INITIAL_ADMINS);
+      const base = Array.isArray(saved) ? saved : (bonyanDatabase.admins || INITIAL_ADMINS);
+      return base.filter(a => a && a.id);
     } catch {
-      return bonyanDatabase.admins || INITIAL_ADMINS;
+      return (bonyanDatabase.admins || INITIAL_ADMINS).filter(a => a && a.id);
     }
   });
   
   const [storeProducts, setStoreProducts] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('bonyan_store_v3'));
-      return Array.isArray(saved) ? saved : INITIAL_STORE;
+      const base = Array.isArray(saved) ? saved : INITIAL_STORE;
+      return base.filter(p => p && p.id);
     } catch {
-      return INITIAL_STORE;
+      return INITIAL_STORE.filter(p => p && p.id);
     }
   });
 
@@ -122,7 +125,7 @@ function App() {
     try {
       const saved = JSON.parse(localStorage.getItem('bonyan_grading_history_v3'));
       const base = Array.isArray(saved) ? saved : INITIAL_GRADING_HISTORY;
-      return base.filter(item => item.id !== 'g1' && item.id !== 'g2');
+      return base.filter(item => item && item.id && item.id !== 'g1' && item.id !== 'g2');
     } catch {
       return [];
     }
@@ -131,7 +134,8 @@ function App() {
   const [purchaseOrders, setPurchaseOrders] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('bonyan_orders_v3'));
-      return Array.isArray(saved) ? saved : [];
+      const base = Array.isArray(saved) ? saved : [];
+      return base.filter(o => o && o.id);
     } catch {
       return [];
     }
@@ -272,8 +276,8 @@ function App() {
 
   const ensureArray = (val) => {
     if (!val) return [];
-    if (Array.isArray(val)) return val;
-    return Object.values(val);
+    const arr = Array.isArray(val) ? val : Object.values(val);
+    return arr.filter(item => item !== null && item !== undefined);
   };
 
   const compressAndResizeImage = (file, maxWidth = 300, maxHeight = 300, quality = 0.7) => {
