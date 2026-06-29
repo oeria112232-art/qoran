@@ -257,7 +257,14 @@ function App() {
   const [aiStudentPoints, setAiStudentPoints] = useState('');
 
   // 20 requests per user limit state
-  const [aiUsage, setAiUsage] = useState(() => JSON.parse(localStorage.getItem('bonyan_ai_usage')) || {});
+  const [aiUsage, setAiUsage] = useState(() => {
+    try {
+      const saved = localStorage.getItem('bonyan_ai_usage');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
 
   useEffect(() => {
     localStorage.setItem('bonyan_ai_usage', JSON.stringify(aiUsage));
@@ -1732,7 +1739,7 @@ function App() {
   // Logged in student data
   const currentStudentData = currentUser?.role === 'student' ? students.find(s => s.id === currentUser.id) : null;
 
-  const isWideLayout = ['admin', 'superadmin', 'teacher', 'store'].includes(currentUser.role);
+  const isWideLayout = currentUser && ['admin', 'superadmin', 'teacher', 'store'].includes(currentUser.role);
 
   return (
     <div className={`App ${isWideLayout ? 'wide-layout' : ''}`}>
@@ -4662,7 +4669,7 @@ function App() {
             
             <div className="modal-item">
               <span>درجة الحفظ والتجويد:</span>
-              <strong>{currentGradingData.memorization} / 20</strong>
+              <strong>{currentGradingData.memorization} / 10</strong>
             </div>
             <div className="modal-item">
               <span>عدد الآيات المحفوظة:</span>

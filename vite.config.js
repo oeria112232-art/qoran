@@ -6,6 +6,10 @@ export default defineConfig({
   plugins: [
     react()
   ],
+  build: {
+    target: 'es2018',
+    cssTarget: 'chrome61'
+  },
   server: {
     port: 4445,
     host: '127.0.0.1',
