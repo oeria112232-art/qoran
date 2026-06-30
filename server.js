@@ -346,6 +346,8 @@ const server = http.createServer((req, res) => {
 
     const ext = path.extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    const isHashedAsset = /\/assets\/index-[a-zA-Z0-9]+\.(js|css)$/.test(filePath);
+    const isIndexHtml = filePath.endsWith('index.html');
 
     fs.readFile(filePath, (readErr, content) => {
       if (readErr) {
@@ -354,16 +356,35 @@ const server = http.createServer((req, res) => {
         return;
       }
       
-      // No caching for ANY file - always serve fresh content.
-      // This prevents iOS Safari infinite reload loops caused by stale cached JS bundles.
-      const responseHeaders = {
-        'Content-Type': contentType,
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-      };
+      let cacheHeaders;
+      if (isIndexHtml) {
+        // index.html: absolute no-cache so every browser always fetches fresh HTML
+        // This ensures iOS Safari always gets the latest JS/CSS bundle references
+        cacheHeaders = {
+          'Content-Type': contentType,
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+          'Surrogate-Control': 'no-store',
+          'Vary': '*',
+        };
+      } else if (isHashedAsset) {
+        // Hashed JS/CSS bundles: safe to cache long-term because filenames change on every build
+        cacheHeaders = {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=31536000, immutable',
+        };
+      } else {
+        // All other static assets: no caching
+        cacheHeaders = {
+          'Content-Type': contentType,
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        };
+      }
 
-      res.writeHead(200, responseHeaders);
+      res.writeHead(200, cacheHeaders);
       res.end(content);
     });
   });

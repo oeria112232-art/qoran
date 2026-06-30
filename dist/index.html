@@ -5,7 +5,33 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📖</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="google" content="notranslate" />
+    <!-- Aggressive no-cache for all browsers especially iOS Safari -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>منصة دورة بنيان الصيفية - حماة الأقصى 2</title>
+    <!-- Guard: If the JS bundle fails to load (stale cache pointing to old hash), force a hard reload -->
+    <script>
+      window.__bundleError = false;
+      window.addEventListener('error', function(e) {
+        if (e && e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
+          if (!window.__bundleError) {
+            window.__bundleError = true;
+            console.warn('[Bonyan] Stale asset detected. Forcing hard reload...');
+            // Clear all caches if Cache API is available
+            if ('caches' in window) {
+              caches.keys().then(function(names) {
+                names.forEach(function(name) { caches.delete(name); });
+              });
+            }
+            // Hard reload bypassing all cache
+            setTimeout(function() {
+              window.location.replace(window.location.pathname + '?_cb=' + Date.now());
+            }, 100);
+          }
+        }
+      }, true);
+    </script>
     <script type="module" crossorigin src="/assets/index-CHWw9ooQ.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-ePfFwcMz.css">
   </head>
@@ -13,3 +39,4 @@
     <div id="root"></div>
   </body>
 </html>
+
