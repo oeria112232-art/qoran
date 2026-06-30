@@ -185,6 +185,9 @@ function App() {
 
   // Database load status
   const [databaseLoaded, setDatabaseLoaded] = useState(false);
+  // Cloud sync guard: true only after Firebase successfully delivers data
+  // ANY save operation is blocked until this is true to prevent data overwrites
+  const [isCloudSynced, setIsCloudSynced] = useState(false);
 
   // Profile Edit Form state
   const [profileName, setProfileName] = useState('');
@@ -330,6 +333,12 @@ function App() {
     aiUsage: nextAiUsage,
     lessons: nextLessons
   }) => {
+    // CRITICAL SAFETY GUARD: Never write to Firebase before cloud data is confirmed loaded.
+    // This prevents stale local cache from overwriting live Firebase data.
+    if (!isCloudSynced) {
+      console.warn('[Bonyan] Blocked Firebase write: cloud data not yet synced.');
+      return;
+    }
     try {
       const updates = {};
       let hasUpdates = false;
@@ -551,18 +560,20 @@ function App() {
   useEffect(() => {
     const dbRef = ref(db, '/');
     
-    // Fallback: If Firebase connection takes more than 4.5 seconds (slow connection/offline),
-    // bypass the green screen and allow local operations.
+    // Safe fallback: if Firebase takes > 8s, show the UI in READ-ONLY mode.
+    // isCloudSynced remains false, so NO writes can happen until cloud data arrives.
+    // This prevents stale local data from overwriting Firebase.
     const fallbackTimeout = setTimeout(() => {
       setDatabaseLoaded(prev => {
         if (!prev) {
-          console.warn('Firebase sync timed out. Falling back to local storage.');
-          triggerToast('⚠️ الاتصال بطيء. تم التحميل المؤقت من ذاكرة المتصفح.');
+          console.warn('[Bonyan] Firebase sync timed out. UI shown in READ-ONLY mode.');
+          triggerToast('⚠️ الاتصال بطيء. الموقع بوضع القراءة فقط حتى يكتمل الاتصال.');
           return true;
+          // NOTE: isCloudSynced stays FALSE — saves are blocked until cloud responds
         }
         return prev;
       });
-    }, 4500);
+    }, 8000);
 
     const unsubscribe = onValue(dbRef, (snapshot) => {
       clearTimeout(fallbackTimeout);
@@ -574,7 +585,7 @@ function App() {
         const cloudTeachers = ensureArray(data.teachers);
         const cloudAdmins = ensureArray(data.admins);
         const cloudStoreProducts = ensureArray(data.storeProducts);
-        const cloudGradingHistory = ensureArray(data.gradingHistory).filter(item => item.id !== 'g1' && item.id !== 'g2');
+        const cloudGradingHistory = ensureArray(data.gradingHistory).filter(item => item && item.id && item.id !== 'g1' && item.id !== 'g2');
         const cloudPurchaseOrders = ensureArray(data.purchaseOrders);
 
         // Mark this update as incoming from cloud to prevent echo write
@@ -600,11 +611,13 @@ function App() {
         prevPurchaseOrdersRef.current = cloudPurchaseOrders;
         prevAiUsageRef.current = data.aiUsage || {};
 
+        // UNLOCK writes now that we have verified cloud data
+        setIsCloudSynced(true);
         setDatabaseLoaded(true);
-        console.log('Successfully synced database from Firebase Realtime Database.');
+        console.log('[Bonyan] Cloud sync complete. Writes unlocked.');
       } else {
-        // If Firebase database is empty (does not exist), seed it with initial bonyanDatabase JSON data
-        console.log('Firebase is empty. Seeding Firebase with initial database.');
+        // Firebase is empty — seed it with initial data
+        console.log('[Bonyan] Firebase is empty. Seeding with initial database.');
         const seedData = {
           students: bonyanDatabase.students,
           classrooms: bonyanDatabase.classrooms,
@@ -617,19 +630,21 @@ function App() {
         };
         set(ref(db, '/'), seedData)
           .then(() => {
-            console.log('Successfully seeded initial database to Firebase.');
+            console.log('[Bonyan] Initial database seeded.');
+            setIsCloudSynced(true);
             setDatabaseLoaded(true);
           })
           .catch((error) => {
-            console.error('Failed to seed initial database to Firebase:', error);
+            console.error('[Bonyan] Failed to seed initial database:', error);
+            setDatabaseLoaded(true);
           });
       }
     }, (error) => {
       clearTimeout(fallbackTimeout);
-      console.error('Firebase read error:', error);
-      setToastMessage('خطأ: فشل الاتصال بقاعدة بيانات Firebase!');
-      setTimeout(() => setToastMessage(''), 3000);
-      setDatabaseLoaded(true); // Bypass to let them use local data if error occurs
+      console.error('[Bonyan] Firebase read error:', error);
+      triggerToast('خطأ: فشل الاتصال بقاعدة البيانات. الموقع بوضع القراءة فقط.');
+      setDatabaseLoaded(true);
+      // isCloudSynced stays false — no writes allowed on connection error
     });
 
     return () => {
@@ -772,6 +787,11 @@ function App() {
     e.preventDefault();
     if (!profilePassword) return;
 
+    if (!isCloudSynced) {
+      triggerToast('⚠️ يرجى الانتظار حتى يكتمل الاتصال بالسحابة قبل حفظ التغييرات.');
+      return;
+    }
+
     if (currentUser.role === 'student') {
       const nextStudents = students.map(s => {
         if (s.id === currentUser.id) {
@@ -858,6 +878,11 @@ function App() {
   const handlePurchase = (product) => {
     if (!currentUser || currentUser.role !== 'student') return;
 
+    if (!isCloudSynced) {
+      triggerToast('⚠️ يرجى الانتظار حتى يكتمل الاتصال بالسحابة قبل إتمام الشراء.');
+      return;
+    }
+
     const studentData = students.find(s => s.id === currentUser.id);
     if (!studentData) return;
 
@@ -914,6 +939,12 @@ function App() {
   const handleTeacherSubmitGrades = () => {
     if (!selectedStudentId) return;
 
+    // Block grading if cloud data hasn't loaded yet
+    if (!isCloudSynced) {
+      triggerToast('⚠️ يرجى الانتظار حتى يكتمل الاتصال بالسحابة قبل تسجيل الدرجات.');
+      return;
+    }
+
     // Check if student has their membership suspended/frozen
     const studentObj = students.find(s => s.id === selectedStudentId);
     if (studentObj && studentObj.isSuspended) {
@@ -963,6 +994,13 @@ function App() {
 
   const confirmGrades = () => {
     if (!selectedStudentId || !currentGradingData) return;
+
+    // Final safety check before write
+    if (!isCloudSynced) {
+      triggerToast('⚠️ لا يمكن حفظ الدرجات. الاتصال بالسحابة لم يكتمل بعد.');
+      setShowGradingPopup(false);
+      return;
+    }
 
     const student = students.find(s => s.id === selectedStudentId);
     if (!student) return;
@@ -2275,6 +2313,23 @@ function App() {
                   <div className="teacher-meta-item">
                     <span className="teacher-meta-icon">⭐</span>
                     <span>إجمالي نقاط الحلقة التراكمية: {teacherClassroom ? teacherClassroom.totalPoints : 0} نقطة</span>
+                  </div>
+                  {/* Cloud sync status indicator */}
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    marginTop: '0.5rem',
+                    padding: '0.3rem 0.8rem',
+                    borderRadius: '20px',
+                    fontSize: '0.78rem',
+                    fontWeight: '700',
+                    backgroundColor: isCloudSynced ? 'rgba(46,125,50,0.15)' : 'rgba(255,152,0,0.15)',
+                    color: isCloudSynced ? '#2e7d32' : '#e65100',
+                    border: `1px solid ${isCloudSynced ? '#2e7d32' : '#e65100'}`,
+                  }}>
+                    <span style={{ fontSize: '0.9rem' }}>{isCloudSynced ? '✅' : '⏳'}</span>
+                    {isCloudSynced ? 'متصل بالسحابة - التقييم متاح' : 'جاري الاتصال بالسحابة... يرجى الانتظار'}
                   </div>
                 </header>
 
