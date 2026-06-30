@@ -653,9 +653,11 @@ function App() {
     };
   }, []);
 
-  // 2. Sync to localStorage
+  // 2. Sync to localStorage — ONLY after cloud data is confirmed to prevent caching stale data
   useEffect(() => {
-    // Only save to local storage if it's the correct imported data
+    // Guard: only persist to localStorage after cloud sync is confirmed.
+    // This ensures old cached data never survives across sessions when cloud has newer data.
+    if (!isCloudSynced) return;
     if (students && students.length >= 300) {
       try {
         localStorage.setItem('bonyan_students_v3', JSON.stringify(students));
@@ -671,7 +673,7 @@ function App() {
         console.warn('[Bonyan] LocalStorage quota exceeded, caching disabled:', err);
       }
     }
-  }, [students, classrooms, teachers, admins, storeProducts, gradingHistory, purchaseOrders, isLoggedIn, currentUser, aiUsage]);
+  }, [isCloudSynced, students, classrooms, teachers, admins, storeProducts, gradingHistory, purchaseOrders, isLoggedIn, currentUser, aiUsage]);
 
 
 
