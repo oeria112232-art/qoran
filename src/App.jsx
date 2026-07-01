@@ -4741,6 +4741,100 @@ function App() {
 
       </div>
 
+      {/* Bulk Points Addition Modal */}
+      {showBulkPointsModal && (
+        <div className="popup-overlay animate-fade-in" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div className="popup-content popup-grading animate-slide-up" style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '15px', maxWidth: '400px', width: '90%' }}>
+            <div className="popup-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h2 style={{ margin: 0, color: 'var(--color-primary)' }}>إضافة نقاط جماعية 🎁</h2>
+              <button className="close-popup" onClick={() => setShowBulkPointsModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>✕</button>
+            </div>
+            
+            <div className="popup-body">
+              <p style={{ marginBottom: '1rem', color: 'var(--color-text-gray)', fontSize: '0.9rem' }}>
+                استخدم هذه الميزة لتعويض النقاط للطلاب بشكل جماعي. يمكنك إضافة النقاط لجميع طلاب المنصة أو لطلاب حلقة محددة فقط.
+              </p>
+
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>الفئة المستهدفة</label>
+                <select 
+                  className="form-input" 
+                  value={bulkPointsTarget}
+                  onChange={(e) => setBulkPointsTarget(e.target.value)}
+                  style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }}
+                >
+                  <option value="all">جميع طلاب المنصة ({students.length} طالب)</option>
+                  <optgroup label="الحلقات">
+                    {classrooms.map(c => {
+                      const count = students.filter(s => s.classroomId === c.id).length;
+                      return <option key={c.id} value={c.id}>{c.name} ({count} طلاب)</option>;
+                    })}
+                  </optgroup>
+                </select>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>عدد النقاط المضافة (رصيد تعويضي)</label>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  min="1" 
+                  placeholder="مثال: 50"
+                  value={bulkPointsAmount}
+                  onChange={(e) => setBulkPointsAmount(e.target.value)}
+                  style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }}
+                />
+              </div>
+
+              <div className="popup-actions" style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem' }}>
+                <button 
+                  className="cancel-btn" 
+                  onClick={() => setShowBulkPointsModal(false)}
+                  style={{ flex: 1, padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc', backgroundColor: '#f5f5f5', cursor: 'pointer' }}
+                >
+                  إلغاء
+                </button>
+                <button 
+                  className="submit-btn" 
+                  onClick={() => {
+                    const points = parseFloat(bulkPointsAmount);
+                    if (isNaN(points) || points <= 0) {
+                      triggerToast('يرجى إدخال عدد نقاط صحيح أكبر من صفر.');
+                      return;
+                    }
+                    if (!isCloudSynced) {
+                      triggerToast('⚠️ يرجى الانتظار حتى يكتمل الاتصال بالسحابة قبل الإضافة.');
+                      return;
+                    }
+
+                    const nextStudents = students.map(s => {
+                      if (bulkPointsTarget === 'all' || s.classroomId === bulkPointsTarget) {
+                        return { 
+                          ...s, 
+                          totalPoints: (Number(s.totalPoints) || 0) + points,
+                          availablePoints: (Number(s.availablePoints) || 0) + points
+                        };
+                      }
+                      return s;
+                    });
+
+                    setStudents(nextStudents);
+                    saveUpdatesToFirebase({ students: nextStudents });
+                    
+                    setShowBulkPointsModal(false);
+                    setBulkPointsAmount('');
+                    triggerToast(`تم إضافة ${points} نقطة بنجاح للفئة المحددة!`);
+                  }}
+                  style={{ flex: 2, padding: '0.8rem', borderRadius: '8px', border: 'none', backgroundColor: '#8e24aa', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  إضافة النقاط الآن
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CONFIRMATION POPUP MODAL */}
       {showGradingPopup && currentGradingData && (
         <div className="modal-overlay">
