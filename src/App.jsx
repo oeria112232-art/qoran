@@ -173,6 +173,9 @@ function App() {
   // Roster / grading workflow
   const [selectedStudentId, setSelectedStudentId] = useState(null); // For teacher/admin grading view
   const [showGradingPopup, setShowGradingPopup] = useState(false);
+  const [showBulkPointsModal, setShowBulkPointsModal] = useState(false);
+  const [bulkPointsTarget, setBulkPointsTarget] = useState('all'); // 'all' or classroomId
+  const [bulkPointsAmount, setBulkPointsAmount] = useState('');
   const [currentGradingData, setCurrentGradingData] = useState(null);
 
   // Assessment form state
@@ -3604,21 +3607,30 @@ function App() {
                     <h3 style={{ color: 'var(--color-primary)', fontWeight: '800', fontSize: '1.5rem', margin: 0 }}>🎓 إدارة الطلاب والبيانات</h3>
                     <p style={{ color: 'var(--color-text-gray)', fontSize: '0.875rem', marginTop: '0.25rem' }}>عرض، تعديل، نقل وحذف بيانات جميع طلاب المنصة بشكل احترافي ومباشر</p>
                   </div>
-                  <button 
-                    className="submit-grades-btn"
-                    style={{ margin: 0, padding: '0.6rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '10px', fontWeight: 'bold' }}
-                    onClick={() => {
-                      setEditingStudentObj(null);
-                      setStudentFormName('');
-                      setStudentFormUsername('');
-                      setStudentFormPassword('');
-                      setStudentFormPhone('');
-                      setStudentFormClassId('');
-                      setClassroomAction(classroomAction === 'add_student' ? null : 'add_student');
-                    }}
-                  >
-                    {classroomAction === 'add_student' ? '✕ إلغاء الإضافة' : '➕ إضافة طالب جديد'}
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button 
+                      className="submit-grades-btn"
+                      style={{ margin: 0, padding: '0.6rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '10px', fontWeight: 'bold', backgroundColor: '#8e24aa', color: 'white', border: 'none' }}
+                      onClick={() => setShowBulkPointsModal(true)}
+                    >
+                      🎁 إضافة نقاط جماعية
+                    </button>
+                    <button 
+                      className="submit-grades-btn"
+                      style={{ margin: 0, padding: '0.6rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '10px', fontWeight: 'bold' }}
+                      onClick={() => {
+                        setEditingStudentObj(null);
+                        setStudentFormName('');
+                        setStudentFormUsername('');
+                        setStudentFormPassword('');
+                        setStudentFormPhone('');
+                        setStudentFormClassId('');
+                        setClassroomAction(classroomAction === 'add_student' ? null : 'add_student');
+                      }}
+                    >
+                      {classroomAction === 'add_student' ? '✕ إلغاء الإضافة' : '➕ إضافة طالب جديد'}
+                    </button>
+                  </div>
                 </div>
 
                 {/* 1. Quick Statistics Cards */}
