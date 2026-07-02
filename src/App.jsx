@@ -4443,18 +4443,23 @@ function App() {
                       {purchaseOrders.length === 0 ? (
                         <p style={{ textAlign: 'center', padding: '1rem', color: 'var(--color-text-gray)' }}>لا توجد طلبات شراء مسجلة حالياً.</p>
                       ) : (
-                        purchaseOrders.map(order => (
-                          <div key={order.id} className="admin-list-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.5rem', textAlign: 'right' }}>
-                            <div className="d-flex justify-between w-100">
-                              <div>
-                                <strong>الطالب: {order.studentName}</strong>
-                                <div style={{ fontSize: '0.85rem', color: 'var(--color-primary-light)', fontWeight: '700' }}>الهدية المطلوبة: {order.productName}</div>
+                        purchaseOrders.map(order => {
+                          const studentObj = students.find(s => s.id === order.studentId);
+                          const clsObj = studentObj ? classrooms.find(c => c.id === studentObj.classroomId) : null;
+                          const studentClassName = clsObj ? clsObj.name : 'بدون حلقة';
+
+                          return (
+                            <div key={order.id} className="admin-list-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.5rem', textAlign: 'right' }}>
+                              <div className="d-flex justify-between w-100">
+                                <div>
+                                  <strong>الطالب: {order.studentName} <span style={{ fontSize: '0.8rem', color: '#555', backgroundColor: '#eee', padding: '0.1rem 0.4rem', borderRadius: '4px', marginRight: '0.5rem', fontWeight: 'normal' }}>حلقة: {studentClassName}</span></strong>
+                                  <div style={{ fontSize: '0.85rem', color: 'var(--color-primary-light)', fontWeight: '700' }}>الهدية المطلوبة: {order.productName}</div>
+                                </div>
+                                <div style={{ textAlign: 'left' }}>
+                                  <div style={{ fontWeight: '700', color: 'var(--color-primary)' }}>{order.price} نقطة</div>
+                                  <div style={{ fontSize: '0.8rem', color: 'var(--color-text-gray)' }}>التاريخ: {order.date}</div>
+                                </div>
                               </div>
-                              <div style={{ textAlign: 'left' }}>
-                                <div style={{ fontWeight: '700', color: 'var(--color-primary)' }}>{order.price} نقطة</div>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-gray)' }}>التاريخ: {order.date}</div>
-                              </div>
-                            </div>
                             <div className="d-flex justify-between align-center w-100" style={{ borderTop: '1px solid var(--color-border)', paddingTop: '0.5rem', marginTop: '0.2rem' }}>
                               <div>
                                 <span>حالة الطلب: </span>
@@ -4491,8 +4496,9 @@ function App() {
                                 </button>
                               )}
                             </div>
-                          </div>
-                        ))
+                            </div>
+                          );
+                        })
                       )}
                     </div>
                   </div>
