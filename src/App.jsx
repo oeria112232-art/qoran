@@ -861,6 +861,54 @@ function App() {
     }
   };
 
+  const handleResetAllGrades = async () => {
+    if (!isCloudSynced) {
+      triggerToast('⚠️ يرجى الانتظار حتى يكتمل الاتصال بالسحابة قبل تصفير الدرجات.');
+      return;
+    }
+
+    const firstConfirm = window.confirm('هل أنت متأكد من تصفير وحذف جميع درجات ونقاط وتقييمات الطلاب والحلقات بالكامل؟ لا يمكن التراجع عن هذه العملية!');
+    if (!firstConfirm) return;
+
+    const secondConfirm = window.confirm('تنبيه نهائي: سيتم تصفير النقاط التراكمية والمتاحة لجميع الطلاب، وتصفير نقاط الحلقات، وحذف سجل التقييمات بالكامل. هل تريد الاستمرار حقاً؟');
+    if (!secondConfirm) return;
+
+    try {
+      // 1. Reset student points to 0
+      const nextStudents = students.map(s => ({
+        ...s,
+        totalPoints: 0,
+        availablePoints: 0
+      }));
+
+      // 2. Reset classroom points to 0
+      const nextClassrooms = classrooms.map(c => ({
+        ...c,
+        totalPoints: 0
+      }));
+
+      // 3. Clear grading history
+      const nextGradingHistory = [];
+
+      // 4. Update local states
+      setStudents(nextStudents);
+      setClassrooms(nextClassrooms);
+      setGradingHistory(nextGradingHistory);
+
+      // 5. Save to cloud
+      await saveUpdatesToFirebase({
+        students: nextStudents,
+        classrooms: nextClassrooms,
+        gradingHistory: nextGradingHistory
+      });
+
+      triggerToast('✅ تم تصفير وحذف جميع الدرجات ونقاط الحلقات والطلاب وسجل التقييمات بنجاح!');
+    } catch (err) {
+      console.error('Failed to reset all grades:', err);
+      triggerToast('❌ حدث خطأ أثناء تصفير الدرجات. يرجى المحاولة مرة أخرى.');
+    }
+  };
+
   // Get Student Ranking
   const getStudentRanking = (studentId) => {
     const student = students.find(s => s.id === studentId);
@@ -2859,7 +2907,16 @@ function App() {
               <div>
                 {selectedStudentId === null ? (
                   <>
-                    <h3>البحث ورصد درجات الطلاب (تحكم كامل للإدارة)</h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
+                      <h3 style={{ margin: 0 }}>البحث ورصد درجات الطلاب (تحكم كامل للإدارة)</h3>
+                      <button 
+                        className="submit-grades-btn"
+                        style={{ margin: 0, padding: '0.6rem 1.2rem', backgroundColor: '#d32f2f', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}
+                        onClick={handleResetAllGrades}
+                      >
+                        ⚠️ تصفير وحذف جميع الدرجات
+                      </button>
+                    </div>
                     <input 
                       type="text" 
                       className="search-input mt-1" 
